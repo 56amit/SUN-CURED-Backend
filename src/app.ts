@@ -11,10 +11,10 @@ import uploadRouter from "./routes/upload.routes";
 import dashboardRouter from "./routes/dashboard.routes";
 import orderRouter from "./routes/order.routes";
 
-export const app = express();
-
 // Cloudinary connection initialize kar rahe hain
 connectCloudinary();
+
+const app: express.Application = express();
 
 // Standard middlewares ko pehle call karenge taaki incoming request body parse ho sake
 app.use(cors());
@@ -22,7 +22,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parses URL-encoded body data
 
 // Basic Home route
-app.get("/", (req, res) => {
+app.get("/", (req: express.Request, res: express.Response) => {
   res.send("Backend Running Successfully");
 });
 

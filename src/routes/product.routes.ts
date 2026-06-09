@@ -1,8 +1,13 @@
 import { Router } from "express";
-import { getProducts, createProduct, updateProduct, deleteProduct } from "../controllers/product.controller";
+import {
+  getProducts,
+  createProduct,
+  updateProduct,
+  deleteProduct,
+} from "../controllers/product.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
-const router = Router();
+const router: Router = Router();
 
 // Public route: Products to customer UI pe dikhane hain (sab dekh sakte hain)
 router.get("/", getProducts);

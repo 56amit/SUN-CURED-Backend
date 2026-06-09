@@ -2,7 +2,7 @@ import { Router } from "express";
 import { createOrder, getOrders, updateOrderStatus } from "../controllers/order.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
-const router = Router();
+const router: Router = Router();
 
 // Public route: Cart checkout ke waqt order place karne ke liye
 router.post("/", createOrder);

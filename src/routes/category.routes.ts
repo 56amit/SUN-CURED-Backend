@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getCategories, createCategory, updateCategory, deleteCategory } from "../controllers/category.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
-const router = Router();
+const router: Router = Router();
 
 // Public route: Categories ko koi bhi list kar sakta hai
 router.get("/", getCategories);

@@ -2,7 +2,7 @@ import { Router } from "express";
 import { getTaxes, createTax, updateTax, deleteTax } from "../controllers/tax.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
-const router = Router();
+const router: Router = Router();
 
 // Sabhi log taxes list dekh sakte hain (public route)
 router.get("/", getTaxes);

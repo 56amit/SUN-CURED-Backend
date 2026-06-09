@@ -8,9 +8,13 @@ export interface AuthRequest extends Request {
 }
 
 // Ye middleware check karega ki request authorization token ke sath aayi hai ya nahi
-export const verifyAdmin = (req: AuthRequest, res: Response, next: NextFunction) => {
-  const authHeader = req.headers.authorization;
-  
+export const verifyAdmin = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+): void | Response => {
+  const authHeader = (req.headers as Record<string, string>).authorization;
+
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return res.status(401).json({ error: "Access denied. Token missing hai." });
   }
@@ -19,7 +23,10 @@ export const verifyAdmin = (req: AuthRequest, res: Response, next: NextFunction)
 
   try {
     // Token verify kar rahe hain secret key ke sath
-    const decoded = jwt.verify(token, process.env.JWT_SECRET || "default_secret_key") as { id: string };
+    const decoded = jwt.verify(
+      token,
+      process.env.JWT_SECRET || "default_secret_key",
+    ) as { id: string };
     req.adminId = decoded.id;
     next(); // Agar token sahi hai, to request next function pe chali jayegi
   } catch (error) {
