@@ -14,7 +14,7 @@ import orderRouter from "./routes/order.routes";
 // Cloudinary connection initialize kar rahe hain
 connectCloudinary();
 
-const app: express.Application = express();
+export const app: express.Application = express();
 
 // Standard middlewares ko pehle call karenge taaki incoming request body parse ho sake
 app.use(cors());
