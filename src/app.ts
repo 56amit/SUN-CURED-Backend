@@ -47,3 +47,5 @@ app.use(
     res.status(500).json({ error: "Something went wrong on the server!" });
   },
 );
+
+export default app;
