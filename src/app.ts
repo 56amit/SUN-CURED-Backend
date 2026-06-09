@@ -23,7 +23,7 @@ app.use(express.urlencoded({ extended: true })); // parses URL-encoded body data
 
 // Basic Home route
 app.get("/", (req, res) => {
-  res.send("Sun-Cured Savories API is live!");
+  res.send("Backend Running Successfully");
 });
 
 // APIs Routes register kar rahe hain
@@ -36,7 +36,14 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/orders", orderRouter);
 
 // Global Error Handler Middleware
-app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
-  console.error(err.stack);
-  res.status(500).json({ error: "Something went wrong on the server!" });
-});
+app.use(
+  (
+    err: any,
+    req: express.Request,
+    res: express.Response,
+    next: express.NextFunction,
+  ) => {
+    console.error(err.stack);
+    res.status(500).json({ error: "Something went wrong on the server!" });
+  },
+);
