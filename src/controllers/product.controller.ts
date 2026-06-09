@@ -1,12 +1,18 @@
 import { Request, Response } from "express";
 import db from "../db/config/db.connect";
-import { productsTable, categoriesTable, taxesTable } from "../db/schema/productSchema";
+import {
+  productsTable,
+  categoriesTable,
+  taxesTable,
+} from "../db/schema/productSchema";
 import { eq, and } from "drizzle-orm";
 
 // 1. GET ALL PRODUCTS (supports category filter)
 export const getProducts = async (req: Request, res: Response) => {
   try {
-    const catIdQuery = req.query.catId ? parseInt(req.query.catId as string) : null;
+    const catIdQuery = req.query.catId
+      ? parseInt(req.query.catId as string)
+      : null;
 
     let allProducts;
     if (catIdQuery && !isNaN(catIdQuery)) {
@@ -33,7 +39,9 @@ export const createProduct = async (req: Request, res: Response) => {
 
     // Compulsory fields check kar rahe hain
     if (!name || !catId || price === undefined) {
-      return res.status(400).json({ error: "Name, catId aur price required hain." });
+      return res
+        .status(400)
+        .json({ error: "Name, catId aur price required hain." });
     }
 
     // Check 1: Kya product ki category database me exist karti hai?
@@ -44,7 +52,9 @@ export const createProduct = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!catExists) {
-      return res.status(400).json({ error: "Select ki gayi category database me nahi mili." });
+      return res
+        .status(400)
+        .json({ error: "Select ki gayi category database me nahi mili." });
     }
 
     // Check 2: Agar manual taxId bheja hai, to kya wo exist karta hai?
@@ -56,7 +66,9 @@ export const createProduct = async (req: Request, res: Response) => {
         .limit(1);
 
       if (!taxExists) {
-        return res.status(400).json({ error: "Select kiya gaya tax slab database me nahi mila." });
+        return res
+          .status(400)
+          .json({ error: "Select kiya gaya tax slab database me nahi mila." });
       }
     }
 
@@ -84,7 +96,7 @@ export const createProduct = async (req: Request, res: Response) => {
 // 3. UPDATE EXISTING PRODUCT
 export const updateProduct = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { name, catId, taxId, desc, price, weight, img, status } = req.body;
 
     if (isNaN(id)) {
@@ -100,7 +112,9 @@ export const updateProduct = async (req: Request, res: Response) => {
         .limit(1);
 
       if (!catExists) {
-        return res.status(400).json({ error: "Select ki gayi category database me nahi mili." });
+        return res
+          .status(400)
+          .json({ error: "Select ki gayi category database me nahi mili." });
       }
     }
 
@@ -113,7 +127,9 @@ export const updateProduct = async (req: Request, res: Response) => {
         .limit(1);
 
       if (!taxExists) {
-        return res.status(400).json({ error: "Select kiya gaya tax slab database me nahi mila." });
+        return res
+          .status(400)
+          .json({ error: "Select kiya gaya tax slab database me nahi mila." });
       }
     }
 
@@ -123,7 +139,8 @@ export const updateProduct = async (req: Request, res: Response) => {
       .set({
         name,
         catId: catId !== undefined ? parseInt(catId) : undefined,
-        taxId: taxId !== undefined ? (taxId ? parseInt(taxId) : null) : undefined,
+        taxId:
+          taxId !== undefined ? (taxId ? parseInt(taxId) : null) : undefined,
         desc,
         price: price !== undefined ? parseFloat(price) : undefined,
         weight,
@@ -146,7 +163,7 @@ export const updateProduct = async (req: Request, res: Response) => {
 // 4. DELETE PRODUCT
 export const deleteProduct = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid product ID." });
@@ -161,7 +178,9 @@ export const deleteProduct = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Product nahi mila." });
     }
 
-    return res.status(200).json({ message: "Product delete ho gaya.", deletedProduct });
+    return res
+      .status(200)
+      .json({ message: "Product delete ho gaya.", deletedProduct });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

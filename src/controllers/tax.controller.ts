@@ -43,7 +43,7 @@ export const createTax = async (req: Request, res: Response) => {
 // 3. UPDATE EXISTING TAX SLAB
 export const updateTax = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { name, rate, desc, status } = req.body;
 
     if (isNaN(id)) {
@@ -75,7 +75,7 @@ export const updateTax = async (req: Request, res: Response) => {
 // 4. DELETE TAX SLAB
 export const deleteTax = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid tax ID." });
@@ -91,7 +91,9 @@ export const deleteTax = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Tax slab nahi mila." });
     }
 
-    return res.status(200).json({ message: "Tax slab delete ho gaya.", deletedTax });
+    return res
+      .status(200)
+      .json({ message: "Tax slab delete ho gaya.", deletedTax });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

@@ -19,7 +19,9 @@ export const createCategory = async (req: Request, res: Response) => {
     const { name, taxId, desc, status } = req.body;
 
     if (!name || !taxId) {
-      return res.status(400).json({ error: "Name aur mapped taxId required hain." });
+      return res
+        .status(400)
+        .json({ error: "Name aur mapped taxId required hain." });
     }
 
     // Validation check: taxId sach me taxesTable me exist karta hai ya nahi?
@@ -30,7 +32,9 @@ export const createCategory = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!taxExists) {
-      return res.status(400).json({ error: "Mapped tax ID database me exist nahi karta." });
+      return res
+        .status(400)
+        .json({ error: "Mapped tax ID database me exist nahi karta." });
     }
 
     // Category insert kar rahe hain database me
@@ -53,7 +57,7 @@ export const createCategory = async (req: Request, res: Response) => {
 // 3. UPDATE EXISTING CATEGORY
 export const updateCategory = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { name, taxId, desc, status } = req.body;
 
     if (isNaN(id)) {
@@ -69,7 +73,9 @@ export const updateCategory = async (req: Request, res: Response) => {
         .limit(1);
 
       if (!taxExists) {
-        return res.status(400).json({ error: "Mapped tax ID database me exist nahi karta." });
+        return res
+          .status(400)
+          .json({ error: "Mapped tax ID database me exist nahi karta." });
       }
     }
 
@@ -97,7 +103,7 @@ export const updateCategory = async (req: Request, res: Response) => {
 // 4. DELETE CATEGORY
 export const deleteCategory = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid category ID." });
@@ -112,7 +118,9 @@ export const deleteCategory = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Category nahi mili." });
     }
 
-    return res.status(200).json({ message: "Category delete ho gayi.", deletedCategory });
+    return res
+      .status(200)
+      .json({ message: "Category delete ho gayi.", deletedCategory });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

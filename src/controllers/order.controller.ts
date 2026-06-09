@@ -1,6 +1,11 @@
 import { Request, Response } from "express";
 import db from "../db/config/db.connect";
-import { ordersTable, orderItemsTable, productsTable, taxesTable } from "../db/schema/productSchema";
+import {
+  ordersTable,
+  orderItemsTable,
+  productsTable,
+  taxesTable,
+} from "../db/schema/productSchema";
 import { eq, desc } from "drizzle-orm";
 
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
@@ -9,7 +14,9 @@ export const createOrder = async (req: Request, res: Response) => {
     const { items, paymentGateway } = req.body; // items = [{ productId: 1, quantity: 2 }, ...]
 
     if (!items || !Array.isArray(items) || items.length === 0) {
-      return res.status(400).json({ error: "Cart items are missing or empty." });
+      return res
+        .status(400)
+        .json({ error: "Cart items are missing or empty." });
     }
 
     let calculatedTotal = 0;
@@ -25,7 +32,9 @@ export const createOrder = async (req: Request, res: Response) => {
         .limit(1);
 
       if (!product) {
-        return res.status(404).json({ error: `Product ID ${item.productId} nahi mila.` });
+        return res
+          .status(404)
+          .json({ error: `Product ID ${item.productId} nahi mila.` });
       }
 
       // Tax rate fetch kar rahe hain jo product/category pe mapped hai
@@ -68,7 +77,7 @@ export const createOrder = async (req: Request, res: Response) => {
       .returning();
 
     // 3. Order items ko order_items table me save kar rahe hain (Foreign Key relation ke sath)
-    const itemsToInsert = resolvedItems.map(item => ({
+    const itemsToInsert = resolvedItems.map((item) => ({
       orderId: newOrder.id,
       productId: item.productId,
       quantity: item.quantity,
@@ -90,7 +99,10 @@ export const createOrder = async (req: Request, res: Response) => {
 // 2. GET ALL ORDERS (Admin Only)
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const allOrders = await db.select().from(ordersTable).orderBy(desc(ordersTable.id));
+    const allOrders = await db
+      .select()
+      .from(ordersTable)
+      .orderBy(desc(ordersTable.id));
     return res.status(200).json(allOrders);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -100,7 +112,7 @@ export const getOrders = async (req: Request, res: Response) => {
 // 3. UPDATE ORDER STATUS (Admin Only - e.g. Mark as Paid or Completed)
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { status, paymentStatus, transactionId } = req.body;
 
     if (isNaN(id)) {
