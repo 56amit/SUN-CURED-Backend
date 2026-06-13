@@ -10,6 +10,8 @@ import productRouter from "./routes/product.routes";
 import uploadRouter from "./routes/upload.routes";
 import dashboardRouter from "./routes/dashboard.routes";
 import orderRouter from "./routes/order.routes";
+import userRouter from "./routes/user.routes";
+import testimonialRouter from "./routes/testimonial.routes";
 
 // Cloudinary connection initialize kar rahe hain
 connectCloudinary();
@@ -34,6 +36,8 @@ app.use("/api/products", productRouter);
 app.use("/api/upload", uploadRouter);
 app.use("/api/dashboard", dashboardRouter);
 app.use("/api/orders", orderRouter);
+app.use("/api/users", userRouter);
+app.use("/api/testimonials", testimonialRouter);
 
 // Global Error Handler Middleware
 app.use(

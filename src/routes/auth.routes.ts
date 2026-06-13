@@ -1,9 +1,10 @@
 import { Router } from "express";
-import { login } from "../controllers/auth.controller";
+import { login, register, getMe } from "../controllers/auth.controller";
 
 const router: Router = Router();
 
-// POST /api/auth/login -> Username aur password lekar JWT Token return karega
+router.post("/register", register);
 router.post("/login", login);
+router.get("/me", getMe);
 
 export default router;
