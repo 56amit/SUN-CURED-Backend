@@ -43,6 +43,10 @@ export const ordersTable = pgTable("orders", {
   paymentStatus: varchar({ length: 50 }).default("pending").notNull(),
   paymentGateway: varchar({ length: 100 }),
   transactionId: varchar({ length: 255 }),
+  customerName: varchar({ length: 255 }),
+  customerEmail: varchar({ length: 255 }),
+  customerPhone: varchar({ length: 50 }),
+  shippingAddress: text(),
   createdAt: timestamp().defaultNow().notNull(),
 });
 

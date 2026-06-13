@@ -7,16 +7,21 @@ import {
   taxesTable,
 } from "../db/schema/productSchema";
 import { eq, desc } from "drizzle-orm";
+import { sendOrderEmails } from "../utils/mailer";
 
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
 export const createOrder = async (req: Request, res: Response) => {
   try {
-    const { items, paymentGateway } = req.body; // items = [{ productId: 1, quantity: 2 }, ...]
+    const { items, paymentGateway, customer } = req.body; // items = [{ productId: 1, quantity: 2 }, ...]
 
     if (!items || !Array.isArray(items) || items.length === 0) {
       return res
         .status(400)
         .json({ error: "Cart items are missing or empty." });
+    }
+
+    if (!customer || !customer.name || !customer.email) {
+      return res.status(400).json({ error: "Customer details (name, email) are required." });
     }
 
     let calculatedTotal = 0;
@@ -63,16 +68,21 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // 2. Order record generate kar rahe hain database me (status = pending)
+    // Calculate shipping (Rs 40 hardcoded in frontend)
+    calculatedTotal += 40;
+
+    // Finally, new order database me save karte hain
     const [newOrder] = await db
       .insert(ordersTable)
       .values({
         totalAmount: calculatedTotal,
         taxAmount: calculatedTaxTotal,
+        paymentGateway: paymentGateway || "COD",
         status: "pending",
-        paymentStatus: "pending",
-        paymentGateway: paymentGateway || null,
-        transactionId: null, // Future me gateway transaction ID yahan update hoga
+        customerName: customer.name,
+        customerEmail: customer.email,
+        customerPhone: customer.phone,
+        shippingAddress: customer.address
       })
       .returning();
 
@@ -87,8 +97,21 @@ export const createOrder = async (req: Request, res: Response) => {
 
     await db.insert(orderItemsTable).values(itemsToInsert);
 
+    // Send emails in background
+    sendOrderEmails(
+      newOrder.id,
+      calculatedTotal,
+      {
+        name: customer.name,
+        email: customer.email,
+        phone: customer.phone || 'N/A',
+        address: customer.address || 'N/A',
+      },
+      items.length
+    ).catch(console.error);
+
     return res.status(201).json({
-      message: "Order placed successfully! Pending payment.",
+      message: "Order placed successfully!",
       order: newOrder,
     });
   } catch (error: any) {
