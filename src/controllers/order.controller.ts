@@ -62,7 +62,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
       resolvedItems.push({
         productId: product.id,
-        quantity: item.quantity,
+        quantity: parseInt(item.quantity) || 1,
         priceAtPurchase: product.price,
         taxAtPurchase: taxRate,
       });
