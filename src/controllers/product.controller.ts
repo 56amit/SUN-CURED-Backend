@@ -80,7 +80,7 @@ export const createProduct = async (req: Request, res: Response) => {
         catId: parseInt(catId),
         taxId: taxId ? parseInt(taxId) : null,
         desc: desc || null,
-        price: parseFloat(price),
+        price: parseFloat(String(price).replace(/[^\d.]/g, '')),
         weight: weight || null,
         img: img || null,
         status: status || "active",
@@ -141,9 +141,9 @@ export const updateProduct = async (req: Request, res: Response) => {
         catId: catId !== undefined ? parseInt(catId) : undefined,
         taxId:
           taxId !== undefined ? (taxId ? parseInt(taxId) : null) : undefined,
-        desc,
-        price: price !== undefined ? parseFloat(price) : undefined,
-        weight,
+        desc: desc !== undefined ? desc : undefined,
+        price: price !== undefined ? parseFloat(String(price).replace(/[^\d.]/g, '')) : undefined,
+        weight: weight !== undefined ? weight : undefined,
         img,
         status,
       })
