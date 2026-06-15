@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { createOrder, getOrders, updateOrderStatus } from "../controllers/order.controller";
+import {
+  createOrder,
+  getOrders,
+  updateOrderStatus,
+} from "../controllers/order.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
 const router: Router = Router();
@@ -8,6 +12,7 @@ const router: Router = Router();
 router.post("/", createOrder);
 
 // Admin-only routes: Orders history dekhne aur order update karne ke liye
+router.post("/create", verifyAdmin, createOrder);
 router.get("/", verifyAdmin, getOrders);
 router.put("/:id", verifyAdmin, updateOrderStatus);
 

@@ -1,23 +1,40 @@
 import nodemailer from "nodemailer";
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config();
+
+const emailUser = process.env.EMAIL_USER?.trim();
+const emailPass = process.env.EMAIL_PASS?.trim().replace(/\s+/g, "");
 
 // SMTP Transporter configuration
 const transporter = nodemailer.createTransport({
-  service: "gmail",
+  host: "smtp.gmail.com",
+  port: 587,
+  secure: false, // must be false for port 587
   auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS, // Gmail App Password
+    user: emailUser,
+    pass: emailPass, // Gmail App Password
   },
 });
+
+transporter
+  .verify()
+  .then(() => {
+    console.log("Mail transporter verified and ready to send emails.");
+  })
+  .catch((verifyError) => {
+    console.warn("Mail transporter verification failed:", verifyError);
+  });
 
 export const sendOrderEmails = async (
   orderId: number,
   totalAmount: number,
   customerData: { name: string; email: string; phone: string; address: string },
-  itemsCount: number
+  itemsCount: number,
 ) => {
-  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
-    console.log("Email credentials not set in .env, skipping emails.");
+  if (!emailUser || !emailPass) {
+    console.log(
+      "Email credentials not set or invalid in .env, skipping emails.",
+    );
     return;
   }
 
