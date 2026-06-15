@@ -81,7 +81,7 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
 // 4. Update Testimonial Status (Admin)
 export const updateTestimonialStatus = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
     const { status, content } = req.body;
 
     const [updated] = await db.update(testimonialsTable)
@@ -102,7 +102,7 @@ export const updateTestimonialStatus = async (req: Request, res: Response) => {
 // 5. Delete Testimonial (Admin)
 export const deleteTestimonial = async (req: Request, res: Response) => {
   try {
-    const id = parseInt(req.params.id);
+    const id = parseInt(String(req.params.id));
 
     const [deleted] = await db.delete(testimonialsTable)
       .where(eq(testimonialsTable.id, id))

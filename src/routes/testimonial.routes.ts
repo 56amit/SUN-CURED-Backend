@@ -1,13 +1,13 @@
 import { Router } from "express";
-import { 
-  submitTestimonial, 
-  getApprovedTestimonials, 
-  getAllTestimonials, 
-  updateTestimonialStatus, 
-  deleteTestimonial 
+import {
+  submitTestimonial,
+  getApprovedTestimonials,
+  getAllTestimonials,
+  updateTestimonialStatus,
+  deleteTestimonial,
 } from "../controllers/testimonial.controller";
 
-const router = Router();
+const router: Router = Router();
 
 // Public / Customer Endpoints
 router.post("/", submitTestimonial);

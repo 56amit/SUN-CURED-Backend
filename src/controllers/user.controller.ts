@@ -50,7 +50,7 @@ export const createUser = async (req: Request, res: Response) => {
 // 3. Update User (Admin)
 export const updateUser = async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseInt(String(req.params.id));
     const { firstName, lastName, phone, isActive, role } = req.body;
 
     const [updated] = await db.update(usersTable)
@@ -72,7 +72,7 @@ export const updateUser = async (req: Request, res: Response) => {
 // 4. Delete User (Admin)
 export const deleteUser = async (req: Request, res: Response) => {
   try {
-    const userId = parseInt(req.params.id);
+    const userId = parseInt(String(req.params.id));
 
     const [deleted] = await db.delete(usersTable).where(eq(usersTable.id, userId)).returning();
 
