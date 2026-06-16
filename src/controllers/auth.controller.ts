@@ -11,7 +11,7 @@ const jwtSecret = process.env.JWT_SECRET || "default_secret_key";
 // 1. Register new customer
 export const register = async (req: Request, res: Response) => {
   try {
-    const { firstName, lastName, email, password, phone } = req.body;
+    const { firstName, lastName, email, password, phone, street, city, state, zip } = req.body;
 
     if (!firstName || !lastName || !email || !password) {
       return res.status(400).json({ error: "Missing required fields" });
@@ -31,6 +31,10 @@ export const register = async (req: Request, res: Response) => {
       email,
       passwordHash,
       phone,
+      street: street || null,
+      city: city || null,
+      state: state || null,
+      zip: zip || null,
       role: "customer"
     }).returning();
 
@@ -39,7 +43,7 @@ export const register = async (req: Request, res: Response) => {
     return res.status(201).json({
       message: "User registered successfully",
       token,
-      user: { id: newUser.id, firstName: newUser.firstName, lastName: newUser.lastName, email: newUser.email, role: newUser.role }
+      user: { id: newUser.id, firstName: newUser.firstName, lastName: newUser.lastName, email: newUser.email, phone: newUser.phone, role: newUser.role, street: newUser.street, city: newUser.city, state: newUser.state, zip: newUser.zip }
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -81,7 +85,7 @@ export const login = async (req: Request, res: Response) => {
     return res.status(200).json({
       message: "Login successful",
       token,
-      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role }
+      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, phone: user.phone, street: user.street, city: user.city, state: user.state, zip: user.zip }
     });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -109,7 +113,13 @@ export const getMe = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json({
-      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email, role: user.role, phone: user.phone }
+      user: { id: user.id, firstName: user.firstName, lastName: user.lastName, email: user.email,        role: user.role,
+        phone: user.phone,
+        street: user.street,
+        city: user.city,
+        state: user.state,
+        zip: user.zip
+      }
     });
   } catch (error: any) {
     return res.status(401).json({ error: "Invalid or expired token" });
