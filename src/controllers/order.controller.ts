@@ -6,6 +6,7 @@ import {
   productsTable,
   taxesTable,
 } from "../db/schema/productSchema";
+import { usersTable } from "../db/schema/userSchema";
 import { eq, desc } from "drizzle-orm";
 import { sendOrderEmails } from "../utils/mailer";
 
@@ -131,6 +132,33 @@ export const getOrders = async (req: Request, res: Response) => {
       .from(ordersTable)
       .orderBy(desc(ordersTable.id));
     return res.status(200).json(allOrders);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// 2.5 GET MY ORDERS (Customer)
+export const getMyOrders = async (req: Request | any, res: Response) => {
+  try {
+    const userId = req.adminId; // verifyAdmin middleware sets this to the user's ID
+    if (!userId) {
+      return res.status(401).json({ error: "Unauthorized" });
+    }
+
+    // Get user email
+    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parseInt(userId))).limit(1);
+    if (!user) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    // Fetch orders by user email
+    const myOrders = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.customerEmail, user.email))
+      .orderBy(desc(ordersTable.createdAt));
+
+    return res.status(200).json(myOrders);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
