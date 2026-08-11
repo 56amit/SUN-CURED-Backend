@@ -6,6 +6,7 @@ import {
   deleteProduct,
 } from "../controllers/product.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
+import { upload } from "../middleware/upload.middleware";
 
 const router: Router = Router();
 
@@ -13,8 +14,8 @@ const router: Router = Router();
 router.get("/", getProducts);
 
 // Admin-only routes: Protected routes
-router.post("/", verifyAdmin, createProduct);
-router.put("/:id", verifyAdmin, updateProduct);
+router.post("/", verifyAdmin, upload.single("image"), createProduct);
+router.put("/:id", verifyAdmin, upload.single("image"), updateProduct);
 router.delete("/:id", verifyAdmin, deleteProduct);
 
 export default router;

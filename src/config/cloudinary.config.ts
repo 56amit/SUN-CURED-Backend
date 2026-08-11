@@ -10,6 +10,30 @@ export const connectCloudinary = () => {
   });
 };
 
+const extractPublicIdFromUrl = (imageUrl: string): string | null => {
+  try {
+    const url = new URL(imageUrl);
+    const segments = url.pathname.split("/").filter(Boolean);
+    const uploadIndex = segments.indexOf("upload");
+
+    if (uploadIndex === -1) return null;
+
+    const publicIdParts = segments.slice(uploadIndex + 1);
+    if (!publicIdParts.length) return null;
+
+    if (/^v\d+$/.test(publicIdParts[0])) {
+      publicIdParts.shift();
+    }
+
+    if (!publicIdParts.length) return null;
+
+    const withExtension = publicIdParts.join("/");
+    return withExtension.replace(/\.[^/.]+$/, "");
+  } catch {
+    return null;
+  }
+};
+
 // Ye function file buffer ko Cloudinary pe upload karega
 export const uploadToCloudinary = (fileBuffer: Buffer): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -18,13 +42,24 @@ export const uploadToCloudinary = (fileBuffer: Buffer): Promise<string> => {
       (error, result) => {
         if (error) return reject(error);
         resolve(result!.secure_url); // Upload hone ke baad image URL return karega
-      }
+      },
     );
 
     // Buffer ko readable stream me convert karke pipe karenge
     const stream = new Readable();
     stream.push(fileBuffer);
-    stream.push(null); 
+    stream.push(null);
     stream.pipe(uploadStream);
   });
+};
+
+export const deleteFromCloudinary = async (
+  imageUrl?: string | null,
+): Promise<void> => {
+  if (!imageUrl) return;
+
+  const publicId = extractPublicIdFromUrl(imageUrl);
+  if (!publicId) return;
+
+  await cloudinary.uploader.destroy(publicId);
 };
