@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import bcrypt from "bcryptjs";
+import { OAuth2Client } from "google-auth-library";
 import db from "../db/config/db.connect";
 import { usersTable } from "../db/schema/userSchema";
 import { eq } from "drizzle-orm";
@@ -125,3 +126,74 @@ export const getMe = async (req: Request, res: Response) => {
     return res.status(401).json({ error: "Invalid or expired token" });
   }
 };
+
+// 4. Google Login
+export const googleLogin = async (req: Request, res: Response) => {
+  try {
+    const { token } = req.body;
+    if (!token) {
+      return res.status(400).json({ error: "Google token is required" });
+    }
+
+    const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+    const ticket = await client.verifyIdToken({
+      idToken: token,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+
+    const payload = ticket.getPayload();
+    if (!payload || !payload.email) {
+      return res.status(400).json({ error: "Invalid Google token payload" });
+    }
+
+    const { email, given_name, family_name } = payload;
+
+    // Check if user exists
+    const [existingUser] = await db.select().from(usersTable).where(eq(usersTable.email, email));
+
+    let user;
+
+    if (existingUser) {
+      user = existingUser;
+    } else {
+      // Create new user with a random dummy password
+      const salt = await bcrypt.genSalt(10);
+      const randomPassword = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-10);
+      const passwordHash = await bcrypt.hash(randomPassword, salt);
+
+      const [newUser] = await db.insert(usersTable).values({
+        firstName: given_name || "Google User",
+        lastName: family_name || "",
+        email: email,
+        passwordHash,
+        role: "customer",
+      }).returning();
+      
+      user = newUser;
+    }
+
+    const jwtToken = jwt.sign({ id: user.id, role: user.role }, jwtSecret, { expiresIn: "7d" });
+
+    return res.status(200).json({
+      message: "Google Login successful",
+      token: jwtToken,
+      user: { 
+        id: user.id, 
+        firstName: user.firstName, 
+        lastName: user.lastName, 
+        email: user.email, 
+        role: user.role, 
+        phone: user.phone, 
+        street: user.street, 
+        city: user.city, 
+        state: user.state, 
+        zip: user.zip 
+      }
+    });
+
+  } catch (error: any) {
+    console.error("Google login error:", error);
+    return res.status(500).json({ error: "Google authentication failed" });
+  }
+};
+
