@@ -61,6 +61,7 @@ export const sendOrderEmails = async (
             <th style="text-align:left;">Product Name</th>
             <th style="text-align:center;">Qty</th>
             <th style="text-align:right;">Price (each)</th>
+            <th style="text-align:right;">Subtotal</th>
           </tr>
         </thead>
         <tbody>
@@ -69,8 +70,23 @@ export const sendOrderEmails = async (
             <td>${item.productName}</td>
             <td style="text-align:center;">${item.quantity}</td>
             <td style="text-align:right;">₹${item.price}</td>
+            <td style="text-align:right;">₹${(item.quantity * item.price).toFixed(2)}</td>
           </tr>`).join('')}
         </tbody>
+        <tfoot style="background:#f9f9f9; font-weight:bold;">
+          <tr>
+            <td colspan="3" style="text-align:right;">Items Subtotal:</td>
+            <td style="text-align:right;">₹${items.reduce((sum, item) => sum + item.quantity * item.price, 0).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="text-align:right;">Shipping:</td>
+            <td style="text-align:right;">₹40.00</td>
+          </tr>
+          <tr style="background:#e8f5e9; font-size:1.1em;">
+            <td colspan="3" style="text-align:right;">Grand Total:</td>
+            <td style="text-align:right;">₹${totalAmount.toFixed(2)}</td>
+          </tr>
+        </tfoot>
       </table>
       <h3>Customer Details:</h3>
       <ul>
@@ -97,6 +113,7 @@ export const sendOrderEmails = async (
             <th style="text-align:left;">Product Name</th>
             <th style="text-align:center;">Qty</th>
             <th style="text-align:right;">Price (each)</th>
+            <th style="text-align:right;">Subtotal</th>
           </tr>
         </thead>
         <tbody>
@@ -105,8 +122,23 @@ export const sendOrderEmails = async (
             <td>${item.productName}</td>
             <td style="text-align:center;">${item.quantity}</td>
             <td style="text-align:right;">₹${item.price}</td>
+            <td style="text-align:right;">₹${(item.quantity * item.price).toFixed(2)}</td>
           </tr>`).join('')}
         </tbody>
+        <tfoot style="background:#f9f9f9; font-weight:bold;">
+          <tr>
+            <td colspan="3" style="text-align:right;">Items Subtotal:</td>
+            <td style="text-align:right;">₹${items.reduce((sum, item) => sum + item.quantity * item.price, 0).toFixed(2)}</td>
+          </tr>
+          <tr>
+            <td colspan="3" style="text-align:right;">Shipping:</td>
+            <td style="text-align:right;">₹40.00</td>
+          </tr>
+          <tr style="background:#e8f5e9; font-size:1.1em;">
+            <td colspan="3" style="text-align:right;">Grand Total:</td>
+            <td style="text-align:right;">₹${totalAmount.toFixed(2)}</td>
+          </tr>
+        </tfoot>
       </table>
       <br/>
       <p><strong>Order ID:</strong> #${orderId}</p>
