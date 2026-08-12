@@ -67,6 +67,7 @@ export const createOrder = async (req: Request, res: Response) => {
 
       resolvedItems.push({
         productId: product.id,
+        productName: product.name,
         quantity: parseInt(item.quantity) || 1,
         priceAtPurchase: product.price,
         taxAtPurchase: taxRate,
@@ -112,7 +113,11 @@ export const createOrder = async (req: Request, res: Response) => {
         phone: customer.phone || "N/A",
         address: customer.address || "N/A",
       },
-      items.length,
+      resolvedItems.map((item) => ({
+        productName: item.productName,
+        quantity: item.quantity,
+        price: item.priceAtPurchase,
+      })),
     ).catch(console.error);
 
     return res.status(201).json({
@@ -146,7 +151,11 @@ export const getMyOrders = async (req: Request | any, res: Response) => {
     }
 
     // Get user email
-    const [user] = await db.select().from(usersTable).where(eq(usersTable.id, parseInt(userId))).limit(1);
+    const [user] = await db
+      .select()
+      .from(usersTable)
+      .where(eq(usersTable.id, parseInt(userId)))
+      .limit(1);
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }

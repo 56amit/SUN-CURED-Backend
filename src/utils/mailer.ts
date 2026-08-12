@@ -29,7 +29,7 @@ export const sendOrderEmails = async (
   orderId: number,
   totalAmount: number,
   customerData: { name: string; email: string; phone: string; address: string },
-  itemsCount: number,
+  items: { productName: string; quantity: number; price: number }[],
 ) => {
   if (!emailUser || !emailPass) {
     console.log(
@@ -52,8 +52,26 @@ export const sendOrderEmails = async (
       <ul>
         <li><strong>Order ID:</strong> ${orderId}</li>
         <li><strong>Total Amount:</strong> ₹${totalAmount}</li>
-        <li><strong>Total Items:</strong> ${itemsCount}</li>
+        <li><strong>Total Items:</strong> ${items.length}</li>
       </ul>
+      <h3>Products Ordered:</h3>
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+        <thead style="background:#f0f0f0;">
+          <tr>
+            <th style="text-align:left;">Product Name</th>
+            <th style="text-align:center;">Qty</th>
+            <th style="text-align:right;">Price (each)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+          <tr>
+            <td>${item.productName}</td>
+            <td style="text-align:center;">${item.quantity}</td>
+            <td style="text-align:right;">₹${item.price}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
       <h3>Customer Details:</h3>
       <ul>
         <li><strong>Name:</strong> ${customerData.name}</li>
@@ -72,11 +90,27 @@ export const sendOrderEmails = async (
     html: `
       <h2>Thank You for Your Order, ${customerData.name}! 🌿</h2>
       <p>We have successfully received your order and are getting it ready for dispatch.</p>
-      <h3>Order Summary:</h3>
-      <ul>
-        <li><strong>Order ID:</strong> ${orderId}</li>
-        <li><strong>Total Amount:</strong> ₹${totalAmount}</li>
-      </ul>
+      <h3>Your Items:</h3>
+      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
+        <thead style="background:#f0f0f0;">
+          <tr>
+            <th style="text-align:left;">Product Name</th>
+            <th style="text-align:center;">Qty</th>
+            <th style="text-align:right;">Price (each)</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${items.map(item => `
+          <tr>
+            <td>${item.productName}</td>
+            <td style="text-align:center;">${item.quantity}</td>
+            <td style="text-align:right;">₹${item.price}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      <br/>
+      <p><strong>Order ID:</strong> #${orderId}</p>
+      <p><strong>Total Amount:</strong> ₹${totalAmount} (incl. ₹40 shipping)</p>
       <p><strong>Shipping Address:</strong><br/>${customerData.address}</p>
       <p>We will notify you once your healthy treats are shipped.</p>
       <br/>
