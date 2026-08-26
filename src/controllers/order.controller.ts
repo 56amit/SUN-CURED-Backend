@@ -1,4 +1,5 @@
 import { Request, Response } from "express";
+import crypto from "crypto";
 import db from "../db/config/db.connect";
 import {
   ordersTable,
@@ -13,7 +14,7 @@ import { sendOrderEmails } from "../utils/mailer";
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
 export const createOrder = async (req: Request, res: Response) => {
   try {
-    const { items, paymentGateway, customer } = req.body; // items = [{ productId: 1, quantity: 2 }, ...]
+    const { items, paymentGateway, customer, paymentDetails } = req.body;
 
     console.log("order controller hit", req.body);
 
@@ -76,6 +77,22 @@ export const createOrder = async (req: Request, res: Response) => {
 
     // Calculate shipping (Rs 40 hardcoded in frontend)
     calculatedTotal += 40;
+    // Razorpay signature verification
+    if (paymentGateway === "razorpay") {
+      if (!paymentDetails || !paymentDetails.razorpay_order_id || !paymentDetails.razorpay_payment_id || !paymentDetails.razorpay_signature) {
+        return res.status(400).json({ error: "Missing Razorpay payment details." });
+      }
+
+      const secret = process.env.RAZORPAY_KEY_SECRET as string;
+      const generated_signature = crypto
+        .createHmac("sha256", secret)
+        .update(paymentDetails.razorpay_order_id + "|" + paymentDetails.razorpay_payment_id)
+        .digest("hex");
+
+      if (generated_signature !== paymentDetails.razorpay_signature) {
+        return res.status(400).json({ error: "Invalid payment signature." });
+      }
+    }
 
     // Finally, new order database me save karte hain
     const [newOrder] = await db
@@ -84,7 +101,7 @@ export const createOrder = async (req: Request, res: Response) => {
         totalAmount: calculatedTotal,
         taxAmount: calculatedTaxTotal,
         paymentGateway: paymentGateway || "COD",
-        status: "pending",
+        status: paymentGateway === "razorpay" ? "paid" : "pending",
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
@@ -198,6 +215,37 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json(updatedOrder);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// 4. GET ORDER ITEMS (Admin Only - View Details)
+export const getOrderItems = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id));
+    
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid order ID." });
+    }
+
+    // Fetch order items and join with products table to get product names and images
+    const items = await db
+      .select({
+        id: orderItemsTable.id,
+        orderId: orderItemsTable.orderId,
+        productId: orderItemsTable.productId,
+        quantity: orderItemsTable.quantity,
+        priceAtPurchase: orderItemsTable.priceAtPurchase,
+        taxAtPurchase: orderItemsTable.taxAtPurchase,
+        productName: productsTable.name,
+        productImage: productsTable.img
+      })
+      .from(orderItemsTable)
+      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
+      .where(eq(orderItemsTable.orderId, id));
+
+    return res.status(200).json(items);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

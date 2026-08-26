@@ -12,6 +12,7 @@ import dashboardRouter from "./routes/dashboard.routes";
 import orderRouter from "./routes/order.routes";
 import userRouter from "./routes/user.routes";
 import testimonialRouter from "./routes/testimonial.routes";
+import paymentRouter from "./routes/payment.routes";
 
 // Cloudinary connection initialize kar rahe hain
 connectCloudinary();
@@ -38,6 +39,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/users", userRouter);
 app.use("/api/testimonials", testimonialRouter);
+app.use("/api/payment", paymentRouter);
 
 // Global Error Handler Middleware
 app.use(

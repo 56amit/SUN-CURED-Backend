@@ -4,6 +4,7 @@ import {
   getOrders,
   getMyOrders,
   updateOrderStatus,
+  getOrderItems,
 } from "../controllers/order.controller";
 import { verifyAdmin } from "../middleware/auth.middleware";
 
@@ -19,5 +20,6 @@ router.get("/my-orders", verifyAdmin, getMyOrders);
 router.post("/create", verifyAdmin, createOrder);
 router.get("/", verifyAdmin, getOrders);
 router.put("/:id", verifyAdmin, updateOrderStatus);
+router.get("/:id/items", verifyAdmin, getOrderItems);
 
 export default router;
