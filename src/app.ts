@@ -20,7 +20,28 @@ connectCloudinary();
 export const app: express.Application = express();
 
 // Standard middlewares ko pehle call karenge taaki incoming request body parse ho sake
-app.use(cors());
+// CORS — allowed origins (local + production)
+const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "https://www.suncuredsavories.com",
+  "https://suncuredsavories.com",
+  "https://sun-cured-frontend.vercel.app",
+];
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests with no origin (mobile apps, curl, Postman)
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(express.urlencoded({ extended: true })); // parses URL-encoded body data
 

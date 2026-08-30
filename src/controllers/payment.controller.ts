@@ -5,9 +5,21 @@ import db from "../db/config/db.connect";
 import { ordersTable, productsTable, taxesTable } from "../db/schema/productSchema";
 import { eq } from "drizzle-orm";
 
+const isProduction = process.env.NODE_ENV === "production";
+
+const razorpayKeyId = isProduction
+  ? (process.env.RAZORPAY_KEY_ID_LIVE as string)
+  : (process.env.RAZORPAY_KEY_ID_TEST as string);
+
+const razorpayKeySecret = isProduction
+  ? (process.env.RAZORPAY_KEY_SECRET_LIVE as string)
+  : (process.env.RAZORPAY_KEY_SECRET_TEST as string);
+
+console.log(`💳 Razorpay: Running in ${isProduction ? "🔴 LIVE" : "🟡 TEST"} mode`);
+
 const razorpayInstance = new Razorpay({
-  key_id: process.env.RAZORPAY_KEY_ID as string,
-  key_secret: process.env.RAZORPAY_KEY_SECRET as string,
+  key_id: razorpayKeyId,
+  key_secret: razorpayKeySecret,
 });
 
 export const initiatePayment = async (req: Request, res: Response) => {
@@ -61,6 +73,7 @@ export const initiatePayment = async (req: Request, res: Response) => {
 
     return res.status(200).json({
       success: true,
+      key_id: razorpayKeyId,        // ← frontend ko dynamically milegi
       razorpayOrderId: razorpayOrder.id,
       amount: razorpayOrder.amount,
       currency: razorpayOrder.currency,
@@ -76,7 +89,7 @@ export const verifyPayment = async (req: Request, res: Response) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, orderId } = req.body;
 
-    const secret = process.env.RAZORPAY_KEY_SECRET as string;
+    const secret = razorpayKeySecret;
 
     const generated_signature = crypto
       .createHmac("sha256", secret)
