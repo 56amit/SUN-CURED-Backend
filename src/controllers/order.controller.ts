@@ -88,7 +88,10 @@ export const createOrder = async (req: Request, res: Response) => {
         return res.status(400).json({ error: "Missing Razorpay payment details." });
       }
 
-      const secret = process.env.RAZORPAY_KEY_SECRET as string;
+      const isProduction = process.env.NODE_ENV === "production";
+      const secret = isProduction
+        ? (process.env.RAZORPAY_KEY_SECRET_LIVE as string)
+        : (process.env.RAZORPAY_KEY_SECRET_TEST as string);
       const generated_signature = crypto
         .createHmac("sha256", secret)
         .update(paymentDetails.razorpay_order_id + "|" + paymentDetails.razorpay_payment_id)
