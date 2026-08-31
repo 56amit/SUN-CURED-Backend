@@ -30,6 +30,7 @@ export const sendOrderEmails = async (
   totalAmount: number,
   customerData: { name: string; email: string; phone: string; address: string },
   items: { productName: string; quantity: number; price: number }[],
+  totalTaxAmount: number = 0
 ) => {
   if (!emailUser || !emailPass) {
     console.log(
@@ -39,6 +40,9 @@ export const sendOrderEmails = async (
   }
 
   const adminEmail = process.env.ADMIN_EMAIL || process.env.EMAIL_USER;
+
+  const itemsSubtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
+  const shippingCharge = itemsSubtotal > 500 ? 0 : 50;
 
   // 1. Send Email to Admin
   const adminMailOptions = {
@@ -80,7 +84,11 @@ export const sendOrderEmails = async (
           </tr>
           <tr>
             <td colspan="3" style="text-align:right;">Shipping:</td>
-            <td style="text-align:right;">₹40.00</td>
+            <td style="text-align:right;">${shippingCharge === 0 ? 'Free' : `₹${shippingCharge.toFixed(2)}`}</td>
+          </tr>
+          <tr style="color: #666; font-size: 0.9em;">
+            <td colspan="3" style="text-align:right;">(Includes Taxes):</td>
+            <td style="text-align:right;">₹${totalTaxAmount.toFixed(2)}</td>
           </tr>
           <tr style="background:#e8f5e9; font-size:1.1em;">
             <td colspan="3" style="text-align:right;">Grand Total:</td>
@@ -106,6 +114,18 @@ export const sendOrderEmails = async (
     html: `
       <h2>Thank You for Your Order, ${customerData.name}! 🌿</h2>
       <p>We have successfully received your order and are getting it ready for dispatch.</p>
+      
+      <div style="background-color: #fdfaf1; padding: 20px; border-radius: 12px; margin: 25px 0; border-left: 5px solid #2d5016;">
+        <h3 style="color: #2d5016; margin-top: 0; font-size: 1.4em;">Itadakimasu [いただきます]</h3>
+        <p style="font-style: italic; color: #555; font-size: 1.1em; margin-bottom: 10px;">"I humbly receive."</p>
+        <p style="color: #444; font-size: 0.95em; line-height: 1.6; margin: 0;">
+          Our motto is <strong>Sun, Soil and Sustainability</strong>. 
+          Every bite of our food carries a deep gratitude—to the sun that shined, the farmers who cared, the soil that nurtured, and the journey that brought it to your table. 
+          <br><br>
+          <em>Itadakimasu is more than words; it is gratitude, respect and a promise to value every bite. Good for you, Good for nature.</em> 🌱
+        </p>
+      </div>
+
       <h3>Your Items:</h3>
       <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
         <thead style="background:#f0f0f0;">
@@ -132,7 +152,7 @@ export const sendOrderEmails = async (
           </tr>
           <tr>
             <td colspan="3" style="text-align:right;">Shipping:</td>
-            <td style="text-align:right;">₹40.00</td>
+            <td style="text-align:right;">${shippingCharge === 0 ? 'Free' : `₹${shippingCharge.toFixed(2)}`}</td>
           </tr>
           <tr style="background:#e8f5e9; font-size:1.1em;">
             <td colspan="3" style="text-align:right;">Grand Total:</td>
@@ -142,7 +162,7 @@ export const sendOrderEmails = async (
       </table>
       <br/>
       <p><strong>Order ID:</strong> #${orderId}</p>
-      <p><strong>Total Amount:</strong> ₹${totalAmount} (incl. ₹40 shipping)</p>
+      <p><strong>Total Amount:</strong> ₹${totalAmount} (incl. ${shippingCharge === 0 ? 'Free' : `₹${shippingCharge}`} shipping)</p>
       <p><strong>Shipping Address:</strong><br/>${customerData.address}</p>
       <p>We will notify you once your healthy treats are shipped.</p>
       <br/>

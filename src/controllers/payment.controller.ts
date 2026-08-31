@@ -54,14 +54,14 @@ export const initiatePayment = async (req: Request, res: Response) => {
         if (tax) taxRate = tax.rate;
       }
 
-      const itemPriceTotal = product.price * item.quantity;
-      const itemTaxTotal = (itemPriceTotal * taxRate) / 100;
-
-      calculatedTotal += itemPriceTotal + itemTaxTotal;
+      const itemTotalInclTax = product.price * item.quantity;
+      // We don't add tax on top since the price is inclusive (MRP)
+      calculatedTotal += itemTotalInclTax;
     }
 
-    // Add shipping cost (Rs 40)
-    calculatedTotal += 40;
+    // Dynamic shipping logic (Free if > 500, else 50)
+    const shippingCharge = calculatedTotal > 500 ? 0 : 50;
+    calculatedTotal += shippingCharge;
 
     const options = {
       amount: Math.round(calculatedTotal * 100),

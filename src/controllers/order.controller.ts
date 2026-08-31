@@ -60,10 +60,13 @@ export const createOrder = async (req: Request, res: Response) => {
         if (tax) taxRate = tax.rate;
       }
 
-      const itemPriceTotal = product.price * item.quantity;
-      const itemTaxTotal = (itemPriceTotal * taxRate) / 100;
+      const itemTotalInclTax = product.price * item.quantity;
+      
+      const taxMultiplier = 1 + (taxRate / 100);
+      const basePrice = itemTotalInclTax / taxMultiplier;
+      const itemTaxTotal = itemTotalInclTax - basePrice;
 
-      calculatedTotal += itemPriceTotal + itemTaxTotal;
+      calculatedTotal += itemTotalInclTax;
       calculatedTaxTotal += itemTaxTotal;
 
       resolvedItems.push({
@@ -75,8 +78,10 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Calculate shipping (Rs 40 hardcoded in frontend)
-    calculatedTotal += 40;
+    // Calculate shipping (Rs 50 or Free if > 500)
+    const itemsSubtotal = resolvedItems.reduce((sum, item) => sum + item.quantity * item.priceAtPurchase, 0);
+    const shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+    calculatedTotal += shippingCharge;
     // Razorpay signature verification
     if (paymentGateway === "razorpay") {
       if (!paymentDetails || !paymentDetails.razorpay_order_id || !paymentDetails.razorpay_payment_id || !paymentDetails.razorpay_signature) {
@@ -135,6 +140,7 @@ export const createOrder = async (req: Request, res: Response) => {
         quantity: item.quantity,
         price: item.priceAtPurchase,
       })),
+      calculatedTaxTotal
     ).catch(console.error);
 
     return res.status(201).json({
