@@ -167,6 +167,15 @@ export const sendOrderEmails = async (
       <p>We will notify you once your healthy treats are shipped.</p>
       <br/>
       <p>Warm Regards,<br/><strong>Team Sun-Cured Savories</strong></p>
+      <hr style="border:none; border-top:1px solid #eee; margin: 20px 0;"/>
+      <table style="width:100%; font-size:0.78rem; color:#999;" cellpadding="0" cellspacing="0">
+        <tr>
+          <td><strong style="color:#555;">Sun Cured Savories</strong></td>
+        </tr>
+        <tr><td>C-7, 228, Sidco Shivalik, IMT, Sector-1, Manesar, Gurugram, Haryana - 122052</td></tr>
+        <tr><td style="padding-top:6px;">GST No: 09BVJPN8133J1Z2 | PAN: BVJPN8133J | FSSAI: 12726998000058</td></tr>
+        <tr><td>📧 suncuredsavories@gmail.com | 📞 +91 87964 46551</td></tr>
+      </table>
     `,
   };
 
