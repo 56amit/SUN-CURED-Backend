@@ -172,7 +172,7 @@ export const sendOrderEmails = async (
         <tr>
           <td><strong style="color:#555;">Sun Cured Savories</strong></td>
         </tr>
-        <tr><td>C-7, 228, Sidco Shivalik, IMT, Sector-1, Manesar, Gurugram, Haryana - 122052</td></tr>
+        <tr><td>Plot no. 73, Shiva Enclave, Part-1, Garhi Harsaru, Gurgaon - 122052, Haryana</td></tr>
         <tr><td style="padding-top:6px;">GST No: 09BVJPN8133J1Z2 | PAN: BVJPN8133J | FSSAI: 12726998000058</td></tr>
         <tr><td>📧 suncuredsavories@gmail.com | 📞 +91 87964 46551</td></tr>
       </table>
