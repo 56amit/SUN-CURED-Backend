@@ -154,6 +154,10 @@ export const sendOrderEmails = async (
             <td colspan="3" style="text-align:right;">Shipping:</td>
             <td style="text-align:right;">${shippingCharge === 0 ? 'Free' : `₹${shippingCharge.toFixed(2)}`}</td>
           </tr>
+          <tr style="color: #666; font-size: 0.9em;">
+            <td colspan="3" style="text-align:right;">(Includes Taxes):</td>
+            <td style="text-align:right;">₹${totalTaxAmount.toFixed(2)}</td>
+          </tr>
           <tr style="background:#e8f5e9; font-size:1.1em;">
             <td colspan="3" style="text-align:right;">Grand Total:</td>
             <td style="text-align:right;">₹${totalAmount.toFixed(2)}</td>
@@ -173,7 +177,7 @@ export const sendOrderEmails = async (
           <td><strong style="color:#555;">Sun Cured Savories</strong></td>
         </tr>
         <tr><td>Plot no. 73, Shiva Enclave, Part-1, Garhi Harsaru, Gurgaon - 122052, Haryana</td></tr>
-        <tr><td style="padding-top:6px;">GST No: 09BVJPN8133J1Z2 | PAN: BVJPN8133J | FSSAI: 12726998000058</td></tr>
+        <tr><td style="padding-top:6px;">GST No: 06CTQPP8584H1ZS | PAN: CTQPP8584H | FSSAI: 12726998000058</td></tr>
         <tr><td>📧 suncuredsavories@gmail.com | 📞 +91 87964 46551</td></tr>
       </table>
     `,
