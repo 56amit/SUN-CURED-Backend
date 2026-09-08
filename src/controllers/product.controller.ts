@@ -362,16 +362,41 @@ export const updateProduct = async (req: Request, res: Response) => {
       // Clear existing variants for this product and re-insert fresh list
       await db.delete(productVariantsTable).where(eq(productVariantsTable.productId, id));
 
+      const insertedVariants: any[] = [];
       for (const v of parsedVariants) {
         if (v.weight && v.price !== undefined) {
-          await db.insert(productVariantsTable).values({
-            productId: id,
-            weight: String(v.weight).replace(/gm$/i, "g").trim(),
-            price: parseFloat(String(v.price)),
-            status: v.status || "active",
-          });
+          const [newV] = await db
+            .insert(productVariantsTable)
+            .values({
+              productId: id,
+              weight: String(v.weight).replace(/gm$/i, "g").trim(),
+              price: parseFloat(String(v.price)),
+              status: v.status || "active",
+            })
+            .returning();
+          insertedVariants.push(newV);
         }
       }
+
+      // Sync base product price and weight to match the first variant
+      const firstV = insertedVariants[0];
+      if (firstV) {
+        await db
+          .update(productsTable)
+          .set({
+            price: firstV.price,
+            weight: firstV.weight,
+          })
+          .where(eq(productsTable.id, id));
+
+        updatedProduct.price = firstV.price;
+        updatedProduct.weight = firstV.weight;
+      }
+
+      return res.status(200).json({
+        ...updatedProduct,
+        variants: insertedVariants,
+      });
     } else if (weight !== undefined || price !== undefined) {
       // Also update or insert default variant for this product
       const existingVariants = await db
@@ -387,7 +412,15 @@ export const updateProduct = async (req: Request, res: Response) => {
       }
     }
 
-    return res.status(200).json(updatedProduct);
+    const currentVariants = await db
+      .select()
+      .from(productVariantsTable)
+      .where(eq(productVariantsTable.productId, id));
+
+    return res.status(200).json({
+      ...updatedProduct,
+      variants: currentVariants,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
