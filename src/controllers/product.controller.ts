@@ -62,10 +62,16 @@ export const getProducts = async (req: Request, res: Response) => {
 
     for (const p of allProducts) {
       const nameKey = p.name.trim().toLowerCase();
-      let prodVariants = allVariants.filter((v) => v.productId === p.id);
+      let prodVariants = allVariants
+        .filter((v) => v.productId === p.id)
+        .map((v) => ({
+          ...v,
+          weight: (v.weight || "").replace(/gm$/i, "g").trim(),
+        }));
 
       if (prodVariants.length === 0 && p.weight) {
         let price = p.price;
+        let weight = p.weight.replace(/gm$/i, "g").trim();
         if (p.name.toLowerCase().includes("beetroot") && p.weight.includes("200")) {
           price = 273;
         }
@@ -73,7 +79,7 @@ export const getProducts = async (req: Request, res: Response) => {
           {
             id: p.id,
             productId: p.id,
-            weight: p.weight,
+            weight: weight,
             price: price,
             status: "active",
           },
@@ -83,6 +89,7 @@ export const getProducts = async (req: Request, res: Response) => {
       if (!groupedMap.has(nameKey)) {
         groupedMap.set(nameKey, {
           ...p,
+          weight: p.weight ? p.weight.replace(/gm$/i, "g").trim() : p.weight,
           variants: [...prodVariants],
         });
       } else {
