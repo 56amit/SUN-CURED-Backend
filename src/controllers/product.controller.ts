@@ -25,23 +25,6 @@ async function ensureVariantsTable() {
         status VARCHAR(50) DEFAULT 'active' NOT NULL
       );
     `);
-    
-    const existingVariants = await db.select().from(productVariantsTable);
-    if (existingVariants.length === 0) {
-      const allProds = await db.select().from(productsTable);
-      for (const p of allProds) {
-        let price = p.price;
-        if (p.name.toLowerCase().includes("beetroot") && p.weight?.includes("200")) {
-          price = 273; // Correct 200g price to 273
-        }
-        await db.insert(productVariantsTable).values({
-          productId: p.id,
-          weight: p.weight || "100g",
-          price: price,
-          status: "active",
-        });
-      }
-    }
     migrationChecked = true;
   } catch (err) {
     console.error("ensureVariantsTable error:", err);
@@ -67,7 +50,12 @@ export const getProducts = async (req: Request, res: Response) => {
       allProducts = await db.select().from(productsTable);
     }
 
-    const allVariants = await db.select().from(productVariantsTable);
+    let allVariants: any[] = [];
+    try {
+      allVariants = await db.select().from(productVariantsTable);
+    } catch (variantErr) {
+      console.warn("Could not fetch product_variants, falling back:", variantErr);
+    }
 
     // Group products by clean name key so client receives 1 product object with variants
     const groupedMap = new Map<string, any>();

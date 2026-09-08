@@ -30,7 +30,7 @@ export const productsTable = pgTable("products", {
 
 export const productVariantsTable = pgTable("product_variants", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  productId: integer().references(() => productsTable.id, { onDelete: "cascade" }).notNull(),
+  productId: integer("product_id").references(() => productsTable.id, { onDelete: "cascade" }).notNull(),
   weight: varchar({ length: 50 }).notNull(),
   price: doublePrecision().notNull(),
   status: varchar({ length: 50 }).default("active").notNull(),
