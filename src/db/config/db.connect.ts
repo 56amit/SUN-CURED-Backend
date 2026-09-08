@@ -1,11 +1,15 @@
 import "dotenv/config";
 import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
 
 let db: any = null;
 
 if (process.env.DATABASE_URL) {
   try {
-    db = drizzle(process.env.DATABASE_URL);
+    const pool = new Pool({
+      connectionString: process.env.DATABASE_URL,
+    });
+    db = drizzle(pool);
   } catch (err) {
     console.warn("Failed to initialize database client:", err);
     db = {} as any;
