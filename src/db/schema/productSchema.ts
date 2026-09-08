@@ -28,6 +28,14 @@ export const productsTable = pgTable("products", {
   status: varchar({ length: 50 }).default("active").notNull(),
 });
 
+export const productVariantsTable = pgTable("product_variants", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  productId: integer().references(() => productsTable.id, { onDelete: "cascade" }).notNull(),
+  weight: varchar({ length: 50 }).notNull(),
+  price: doublePrecision().notNull(),
+  status: varchar({ length: 50 }).default("active").notNull(),
+});
+
 export const ordersTable = pgTable("orders", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   totalAmount: doublePrecision().notNull(),
@@ -47,6 +55,7 @@ export const orderItemsTable = pgTable("order_items", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   orderId: integer().references(() => ordersTable.id, { onDelete: "cascade" }).notNull(),
   productId: integer().references(() => productsTable.id, { onDelete: "set null" }),
+  variantId: integer().references(() => productVariantsTable.id, { onDelete: "set null" }),
   quantity: integer().notNull(),
   priceAtPurchase: doublePrecision().notNull(),
   taxAtPurchase: doublePrecision().notNull(),
