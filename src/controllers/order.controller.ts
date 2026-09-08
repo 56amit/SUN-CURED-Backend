@@ -112,19 +112,40 @@ export const createOrder = async (req: Request, res: Response) => {
     }
 
     // Finally, new order database me save karte hain
-    const [newOrder] = await db
-      .insert(ordersTable)
-      .values({
-        totalAmount: calculatedTotal,
-        taxAmount: calculatedTaxTotal,
-        paymentGateway: paymentGateway || "COD",
-        status: paymentGateway === "razorpay" ? "paid" : "pending",
-        customerName: customer.name,
-        customerEmail: customer.email,
-        customerPhone: customer.phone,
-        shippingAddress: customer.address,
-      })
-      .returning();
+    let newOrder: any = null;
+    try {
+      const [ord] = await db
+        .insert(ordersTable)
+        .values({
+          totalAmount: calculatedTotal,
+          taxAmount: calculatedTaxTotal,
+          paymentGateway: paymentGateway || "COD",
+          status: paymentGateway === "razorpay" ? "paid" : "pending",
+          customerName: customer.name,
+          customerEmail: customer.email,
+          customerPhone: customer.phone,
+          shippingAddress: customer.address,
+        })
+        .returning();
+      newOrder = ord;
+    } catch (ordErr) {
+      console.warn("Drizzle orders insert failed, attempting SQL fallbacks:", ordErr);
+      try {
+        const res: any = await db.execute(sql`
+          INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address)
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, ${paymentGateway === 'razorpay' ? 'paid' : 'pending'}, ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          RETURNING id, total_amount, tax_amount, status
+        `);
+        newOrder = res.rows ? res.rows[0] : res[0];
+      } catch (sqlErr1) {
+        const res: any = await db.execute(sql`
+          INSERT INTO orders ("totalAmount", "taxAmount", "paymentGateway", status, "customerName", "customerEmail", "customerPhone", "shippingAddress")
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, ${paymentGateway === 'razorpay' ? 'paid' : 'pending'}, ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          RETURNING id
+        `);
+        newOrder = res.rows ? res.rows[0] : res[0];
+      }
+    }
 
     // 3. Order items ko order_items table me save kar rahe hain
     try {
@@ -137,12 +158,19 @@ export const createOrder = async (req: Request, res: Response) => {
       }));
       await db.insert(orderItemsTable).values(itemsToInsert);
     } catch (insertErr) {
-      console.warn("Drizzle order_items insert error, trying SQL fallback:", insertErr);
+      console.warn("Drizzle order_items insert error, trying SQL fallbacks:", insertErr);
       for (const item of resolvedItems) {
-        await db.execute(sql`
-          INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase, tax_at_purchase)
-          VALUES (${newOrder.id}, ${item.productId}, ${item.quantity}, ${item.priceAtPurchase}, ${item.taxAtPurchase})
-        `);
+        try {
+          await db.execute(sql`
+            INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase, tax_at_purchase)
+            VALUES (${newOrder.id}, ${item.productId}, ${item.quantity}, ${item.priceAtPurchase}, ${item.taxAtPurchase})
+          `);
+        } catch (e1) {
+          await db.execute(sql`
+            INSERT INTO order_items ("orderId", "productId", quantity, "priceAtPurchase", "taxAtPurchase")
+            VALUES (${newOrder.id}, ${item.productId}, ${item.quantity}, ${item.priceAtPurchase}, ${item.taxAtPurchase})
+          `);
+        }
       }
     }
 
