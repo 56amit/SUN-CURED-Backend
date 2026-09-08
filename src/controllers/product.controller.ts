@@ -69,10 +69,20 @@ export const getProducts = async (req: Request, res: Response) => {
           weight: (v.weight || "").replace(/gm$/i, "g").trim(),
         }));
 
+      // Normalize variants prices and weights
+      prodVariants = prodVariants.map((v) => {
+        let price = v.price;
+        let w = (v.weight || "").replace(/gm$/i, "g").trim();
+        if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && w.includes("200")) {
+          price = 273;
+        }
+        return { ...v, weight: w, price };
+      });
+
       if (prodVariants.length === 0 && p.weight) {
         let price = p.price;
         let weight = p.weight.replace(/gm$/i, "g").trim();
-        if (p.name.toLowerCase().includes("beetroot") && p.weight.includes("200")) {
+        if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && weight.includes("200")) {
           price = 273;
         }
         prodVariants = [
@@ -86,6 +96,50 @@ export const getProducts = async (req: Request, res: Response) => {
         ];
       }
 
+      // Universal check: Ensure both 100g and 200g exist for products
+      const has100 = prodVariants.some((v) => v.weight.includes("100"));
+      const has200 = prodVariants.some((v) => v.weight.includes("200"));
+
+      if (!has200) {
+        const v100 = prodVariants.find((v) => v.weight.includes("100"));
+        let p200 = 273;
+        if (v100) {
+          if (p.name.toLowerCase().includes("tomato") || p.name.toLowerCase().includes("beetroot")) {
+            p200 = 273;
+          } else {
+            p200 = v100.price * 2;
+          }
+        }
+        prodVariants.push({
+          id: p.id * 100 + 2,
+          productId: p.id,
+          weight: "200g",
+          price: p200,
+          status: "active",
+        });
+      }
+
+      if (!has100) {
+        const v200 = prodVariants.find((v) => v.weight.includes("200"));
+        let p100 = 136.5;
+        if (v200) {
+          if (p.name.toLowerCase().includes("tomato") || p.name.toLowerCase().includes("beetroot")) {
+            p100 = 136.5;
+          } else {
+            p100 = v200.price / 2;
+          }
+        }
+        prodVariants.unshift({
+          id: p.id * 100 + 1,
+          productId: p.id,
+          weight: "100g",
+          price: p100,
+          status: "active",
+        });
+      }
+
+      prodVariants.sort((a, b) => a.price - b.price);
+
       if (!groupedMap.has(nameKey)) {
         groupedMap.set(nameKey, {
           ...p,
@@ -98,7 +152,7 @@ export const getProducts = async (req: Request, res: Response) => {
         for (const v of prodVariants) {
           if (!mergedVariants.some((mv) => mv.weight.toLowerCase() === v.weight.toLowerCase())) {
             let price = v.price;
-            if (p.name.toLowerCase().includes("beetroot") && v.weight.includes("200") && price === 260) {
+            if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && v.weight.includes("200") && (price === 260 || price === 260.0)) {
               price = 273;
             }
             mergedVariants.push({ ...v, price });
@@ -170,11 +224,40 @@ export const createProduct = async (req: Request, res: Response) => {
         taxId: taxId ? parseInt(taxId) : null,
         desc: desc || null,
         price: parseFloat(String(price).replace(/[^\d.]/g, "")),
-        weight: weight || null,
+        weight: weight ? weight.replace(/gm$/i, "g").trim() : null,
         img: img || null,
         status: status || "active",
       })
       .returning();
+
+    // Agar variants list di gayi hai, unhe insert karenge
+    let parsedVariants: any[] = [];
+    if (req.body.variants) {
+      try {
+        parsedVariants = typeof req.body.variants === "string" ? JSON.parse(req.body.variants) : req.body.variants;
+      } catch (e) {}
+    }
+
+    if (Array.isArray(parsedVariants) && parsedVariants.length > 0) {
+      for (const v of parsedVariants) {
+        if (v.weight && v.price !== undefined) {
+          await db.insert(productVariantsTable).values({
+            productId: newProduct.id,
+            weight: String(v.weight).replace(/gm$/i, "g").trim(),
+            price: parseFloat(String(v.price)),
+            status: v.status || "active",
+          });
+        }
+      }
+    } else if (newProduct.weight) {
+      // Default single variant
+      await db.insert(productVariantsTable).values({
+        productId: newProduct.id,
+        weight: newProduct.weight.replace(/gm$/i, "g").trim(),
+        price: newProduct.price,
+        status: "active",
+      });
+    }
 
     return res.status(201).json(newProduct);
   } catch (error: any) {
@@ -253,7 +336,7 @@ export const updateProduct = async (req: Request, res: Response) => {
     if (desc !== undefined) updateData.desc = desc;
     if (price !== undefined)
       updateData.price = parseFloat(String(price).replace(/[^\d.]/g, ""));
-    if (weight !== undefined) updateData.weight = weight;
+    if (weight !== undefined) updateData.weight = String(weight).replace(/gm$/i, "g").trim();
     if (req.file || shouldRemoveImage) updateData.img = img;
     if (status !== undefined) updateData.status = status;
 
@@ -265,6 +348,43 @@ export const updateProduct = async (req: Request, res: Response) => {
 
     if (!updatedProduct) {
       return res.status(404).json({ error: "Product nahi mila." });
+    }
+
+    // Variants update / sync
+    let parsedVariants: any[] = [];
+    if (req.body.variants) {
+      try {
+        parsedVariants = typeof req.body.variants === "string" ? JSON.parse(req.body.variants) : req.body.variants;
+      } catch (e) {}
+    }
+
+    if (Array.isArray(parsedVariants) && parsedVariants.length > 0) {
+      // Clear existing variants for this product and re-insert fresh list
+      await db.delete(productVariantsTable).where(eq(productVariantsTable.productId, id));
+
+      for (const v of parsedVariants) {
+        if (v.weight && v.price !== undefined) {
+          await db.insert(productVariantsTable).values({
+            productId: id,
+            weight: String(v.weight).replace(/gm$/i, "g").trim(),
+            price: parseFloat(String(v.price)),
+            status: v.status || "active",
+          });
+        }
+      }
+    } else if (weight !== undefined || price !== undefined) {
+      // Also update or insert default variant for this product
+      const existingVariants = await db
+        .select()
+        .from(productVariantsTable)
+        .where(eq(productVariantsTable.productId, id));
+
+      if (existingVariants.length === 1) {
+        const vUpdate: Record<string, any> = {};
+        if (weight !== undefined) vUpdate.weight = String(weight).replace(/gm$/i, "g").trim();
+        if (price !== undefined) vUpdate.price = parseFloat(String(price).replace(/[^\d.]/g, ""));
+        await db.update(productVariantsTable).set(vUpdate).where(eq(productVariantsTable.id, existingVariants[0].id));
+      }
     }
 
     return res.status(200).json(updatedProduct);
