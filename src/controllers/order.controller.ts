@@ -8,7 +8,7 @@ import {
   taxesTable,
 } from "../db/schema/productSchema";
 import { usersTable } from "../db/schema/userSchema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, sql } from "drizzle-orm";
 import { sendOrderEmails } from "../utils/mailer";
 
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
@@ -126,16 +126,25 @@ export const createOrder = async (req: Request, res: Response) => {
       })
       .returning();
 
-    // 3. Order items ko order_items table me save kar rahe hain (Foreign Key relation ke sath)
-    const itemsToInsert = resolvedItems.map((item) => ({
-      orderId: newOrder.id,
-      productId: item.productId,
-      quantity: item.quantity,
-      priceAtPurchase: item.priceAtPurchase,
-      taxAtPurchase: item.taxAtPurchase,
-    }));
-
-    await db.insert(orderItemsTable).values(itemsToInsert);
+    // 3. Order items ko order_items table me save kar rahe hain
+    try {
+      const itemsToInsert = resolvedItems.map((item) => ({
+        orderId: newOrder.id,
+        productId: item.productId,
+        quantity: item.quantity,
+        priceAtPurchase: item.priceAtPurchase,
+        taxAtPurchase: item.taxAtPurchase,
+      }));
+      await db.insert(orderItemsTable).values(itemsToInsert);
+    } catch (insertErr) {
+      console.warn("Drizzle order_items insert error, trying SQL fallback:", insertErr);
+      for (const item of resolvedItems) {
+        await db.execute(sql`
+          INSERT INTO order_items (order_id, product_id, quantity, price_at_purchase, tax_at_purchase)
+          VALUES (${newOrder.id}, ${item.productId}, ${item.quantity}, ${item.priceAtPurchase}, ${item.taxAtPurchase})
+        `);
+      }
+    }
 
     // Send emails in background
     await sendOrderEmails(
