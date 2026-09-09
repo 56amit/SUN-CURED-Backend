@@ -31,6 +31,29 @@ async function ensureVariantsTable() {
   }
 }
 
+function parseVariantsInput(rawVariants: any): Array<{ weight: string; price: number; status?: string }> {
+  if (!rawVariants) return [];
+  let parsed: any = rawVariants;
+  if (typeof rawVariants === "string") {
+    try {
+      let cleaned = rawVariants.replace(/\[\s*\{+/g, "[{").replace(/\}+\s*\]/g, "}]");
+      parsed = JSON.parse(cleaned);
+    } catch (e) {
+      try {
+        parsed = JSON.parse(rawVariants);
+      } catch (err) {}
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item) => ({
+      weight: String(item.weight || "").replace(/gm$/i, "g").trim(),
+      price: parseFloat(String(item.price).replace(/[^\d.]/g, "")),
+      status: item.status || "active",
+    }))
+    .filter((v) => v.weight && !isNaN(v.price));
+}
+
 // 1. GET ALL PRODUCTS (supports category filter)
 export const getProducts = async (req: Request, res: Response) => {
   try {
@@ -172,32 +195,37 @@ export const createProduct = async (req: Request, res: Response) => {
       })
       .returning();
 
-    // Agar variants list di gayi hai, unhe insert karenge
-    let parsedVariants: any[] = [];
-    if (req.body.variants) {
-      try {
-        parsedVariants = typeof req.body.variants === "string" ? JSON.parse(req.body.variants) : req.body.variants;
-      } catch (e) {}
+    // Merge base product weight/price and any extra variants provided in body
+    const baseWeight = newProduct.weight ? newProduct.weight.replace(/gm$/i, "g").trim() : null;
+    const basePrice = newProduct.price;
+
+    const parsedVariants = parseVariantsInput(req.body.variants);
+    const variantsToInsert: Array<{ weight: string; price: number; status: string }> = [];
+
+    if (baseWeight && basePrice !== undefined && !isNaN(basePrice)) {
+      variantsToInsert.push({
+        weight: baseWeight,
+        price: basePrice,
+        status: "active",
+      });
     }
 
-    if (Array.isArray(parsedVariants) && parsedVariants.length > 0) {
-      for (const v of parsedVariants) {
-        if (v.weight && v.price !== undefined) {
-          await db.insert(productVariantsTable).values({
-            productId: newProduct.id,
-            weight: String(v.weight).replace(/gm$/i, "g").trim(),
-            price: parseFloat(String(v.price)),
-            status: v.status || "active",
-          });
-        }
+    for (const v of parsedVariants) {
+      if (!variantsToInsert.some((existing) => existing.weight.toLowerCase() === v.weight.toLowerCase())) {
+        variantsToInsert.push({
+          weight: v.weight,
+          price: v.price,
+          status: v.status || "active",
+        });
       }
-    } else if (newProduct.weight) {
-      // Default single variant
+    }
+
+    for (const v of variantsToInsert) {
       await db.insert(productVariantsTable).values({
         productId: newProduct.id,
-        weight: newProduct.weight.replace(/gm$/i, "g").trim(),
-        price: newProduct.price,
-        status: "active",
+        weight: v.weight,
+        price: v.price,
+        status: v.status,
       });
     }
 
@@ -293,46 +321,46 @@ export const updateProduct = async (req: Request, res: Response) => {
     }
 
     // Variants update / sync
-    let parsedVariants: any[] = [];
-    if (req.body.variants) {
-      try {
-        parsedVariants = typeof req.body.variants === "string" ? JSON.parse(req.body.variants) : req.body.variants;
-      } catch (e) {}
-    }
+    const parsedVariants = parseVariantsInput(req.body.variants);
 
-    if (Array.isArray(parsedVariants) && parsedVariants.length > 0) {
-      // Clear existing variants for this product and re-insert fresh list
-      await db.delete(productVariantsTable).where(eq(productVariantsTable.productId, id));
+    if (parsedVariants.length > 0) {
+      const updatedWeight = updatedProduct.weight ? updatedProduct.weight.replace(/gm$/i, "g").trim() : null;
+      const updatedPrice = updatedProduct.price;
 
-      const insertedVariants: any[] = [];
+      const finalVariants: Array<{ weight: string; price: number; status: string }> = [];
+
+      if (updatedWeight && updatedPrice !== undefined && !isNaN(updatedPrice)) {
+        finalVariants.push({
+          weight: updatedWeight,
+          price: updatedPrice,
+          status: "active",
+        });
+      }
+
       for (const v of parsedVariants) {
-        if (v.weight && v.price !== undefined) {
-          const [newV] = await db
-            .insert(productVariantsTable)
-            .values({
-              productId: id,
-              weight: String(v.weight).replace(/gm$/i, "g").trim(),
-              price: parseFloat(String(v.price)),
-              status: v.status || "active",
-            })
-            .returning();
-          insertedVariants.push(newV);
+        if (!finalVariants.some((existing) => existing.weight.toLowerCase() === v.weight.toLowerCase())) {
+          finalVariants.push({
+            weight: v.weight,
+            price: v.price,
+            status: v.status || "active",
+          });
         }
       }
 
-      // Sync base product price and weight to match the first variant
-      const firstV = insertedVariants[0];
-      if (firstV) {
-        await db
-          .update(productsTable)
-          .set({
-            price: firstV.price,
-            weight: firstV.weight,
-          })
-          .where(eq(productsTable.id, id));
+      await db.delete(productVariantsTable).where(eq(productVariantsTable.productId, id));
 
-        updatedProduct.price = firstV.price;
-        updatedProduct.weight = firstV.weight;
+      const insertedVariants: any[] = [];
+      for (const v of finalVariants) {
+        const [newV] = await db
+          .insert(productVariantsTable)
+          .values({
+            productId: id,
+            weight: v.weight,
+            price: v.price,
+            status: v.status,
+          })
+          .returning();
+        insertedVariants.push(newV);
       }
 
       return res.status(200).json({
@@ -340,7 +368,6 @@ export const updateProduct = async (req: Request, res: Response) => {
         variants: insertedVariants,
       });
     } else if (weight !== undefined || price !== undefined) {
-      // Also update or insert default variant for this product
       const existingVariants = await db
         .select()
         .from(productVariantsTable)
