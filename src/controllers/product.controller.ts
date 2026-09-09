@@ -62,6 +62,8 @@ export const getProducts = async (req: Request, res: Response) => {
 
     for (const p of allProducts) {
       const nameKey = p.name.trim().toLowerCase();
+
+      // Only use variants stored in DB — normalize weight format
       let prodVariants = allVariants
         .filter((v) => v.productId === p.id)
         .map((v) => ({
@@ -69,73 +71,17 @@ export const getProducts = async (req: Request, res: Response) => {
           weight: (v.weight || "").replace(/gm$/i, "g").trim(),
         }));
 
-      // Normalize variants prices and weights
-      prodVariants = prodVariants.map((v) => {
-        let price = v.price;
-        let w = (v.weight || "").replace(/gm$/i, "g").trim();
-        if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && w.includes("200")) {
-          price = 273;
-        }
-        return { ...v, weight: w, price };
-      });
-
+      // Fallback: if no variants in DB at all, use the product's own weight/price
       if (prodVariants.length === 0 && p.weight) {
-        let price = p.price;
-        let weight = p.weight.replace(/gm$/i, "g").trim();
-        if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && weight.includes("200")) {
-          price = 273;
-        }
         prodVariants = [
           {
             id: p.id,
             productId: p.id,
-            weight: weight,
-            price: price,
+            weight: p.weight.replace(/gm$/i, "g").trim(),
+            price: p.price,
             status: "active",
           },
         ];
-      }
-
-      // Universal check: Ensure both 100g and 200g exist for products
-      const has100 = prodVariants.some((v) => v.weight.includes("100"));
-      const has200 = prodVariants.some((v) => v.weight.includes("200"));
-
-      if (!has200) {
-        const v100 = prodVariants.find((v) => v.weight.includes("100"));
-        let p200 = 273;
-        if (v100) {
-          if (p.name.toLowerCase().includes("tomato") || p.name.toLowerCase().includes("beetroot")) {
-            p200 = 273;
-          } else {
-            p200 = v100.price * 2;
-          }
-        }
-        prodVariants.push({
-          id: p.id * 100 + 2,
-          productId: p.id,
-          weight: "200g",
-          price: p200,
-          status: "active",
-        });
-      }
-
-      if (!has100) {
-        const v200 = prodVariants.find((v) => v.weight.includes("200"));
-        let p100 = 136.5;
-        if (v200) {
-          if (p.name.toLowerCase().includes("tomato") || p.name.toLowerCase().includes("beetroot")) {
-            p100 = 136.5;
-          } else {
-            p100 = v200.price / 2;
-          }
-        }
-        prodVariants.unshift({
-          id: p.id * 100 + 1,
-          productId: p.id,
-          weight: "100g",
-          price: p100,
-          status: "active",
-        });
       }
 
       prodVariants.sort((a, b) => a.price - b.price);
@@ -151,11 +97,7 @@ export const getProducts = async (req: Request, res: Response) => {
         const mergedVariants = [...existing.variants];
         for (const v of prodVariants) {
           if (!mergedVariants.some((mv) => mv.weight.toLowerCase() === v.weight.toLowerCase())) {
-            let price = v.price;
-            if ((p.name.toLowerCase().includes("beetroot") || p.name.toLowerCase().includes("tomato")) && v.weight.includes("200") && (price === 260 || price === 260.0)) {
-              price = 273;
-            }
-            mergedVariants.push({ ...v, price });
+            mergedVariants.push(v);
           }
         }
         mergedVariants.sort((a, b) => a.price - b.price);
