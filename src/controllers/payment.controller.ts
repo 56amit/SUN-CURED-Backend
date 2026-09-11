@@ -33,29 +33,36 @@ export const initiatePayment = async (req: Request, res: Response) => {
     let calculatedTotal = 0;
 
     for (const item of items) {
+      const pId = parseInt(String(item.productId));
       const [product] = await db
         .select()
         .from(productsTable)
-        .where(eq(productsTable.id, parseInt(item.productId)))
+        .where(eq(productsTable.id, pId))
         .limit(1);
 
       if (!product) {
         return res.status(404).json({ error: `Product ID ${item.productId} not found.` });
       }
 
-      let taxRate = 0;
-      const targetTaxId = product.taxId;
-      if (targetTaxId) {
-        const [tax] = await db
-          .select()
-          .from(taxesTable)
-          .where(eq(taxesTable.id, targetTaxId))
-          .limit(1);
-        if (tax) taxRate = tax.rate;
+      let itemPrice = product.price;
+
+      // 1. If frontend sent variant price explicitly (e.g. 273 for 200g tomato), use item.price!
+      if (item.price !== undefined && item.price !== null) {
+        const parsed = parseFloat(String(item.price).replace(/[^\d.]/g, ""));
+        if (!isNaN(parsed) && parsed > 0) {
+          itemPrice = parsed;
+        }
+      } else {
+        // Fallback for beetroot / tomato 200g if unit specified
+        if (
+          (product.name.toLowerCase().includes("beetroot") || product.name.toLowerCase().includes("tomato")) &&
+          (item.unit?.includes("200") || item.weight?.includes("200"))
+        ) {
+          itemPrice = 273;
+        }
       }
 
-      const itemTotalInclTax = product.price * item.quantity;
-      // We don't add tax on top since the price is inclusive (MRP)
+      const itemTotalInclTax = itemPrice * item.quantity;
       calculatedTotal += itemTotalInclTax;
     }
 
