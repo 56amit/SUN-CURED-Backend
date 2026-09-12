@@ -199,7 +199,7 @@ export const sendOrderEmails = async (
 
       <!-- CTA Button -->
       <div style="text-align:center; margin:28px 0;">
-        <a href="https://sun-cured-savories.vercel.app"
+        <a href="https://suncuredsavories.com"
            style="background-color:#2d5016; color:#ffffff; padding:14px 36px; border-radius:30px; text-decoration:none; font-weight:bold; font-size:1rem; display:inline-block;">
           🌿 Visit Our Website
         </a>
