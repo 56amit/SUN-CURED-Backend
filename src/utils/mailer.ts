@@ -176,7 +176,19 @@ export const sendOrderEmails = async (
       <p><strong>Order ID:</strong> #${orderId}</p>
       <p><strong>Total Amount:</strong> ₹${totalAmount} (incl. ${shippingCharge === 0 ? 'Free' : `₹${shippingCharge}`} shipping)</p>
       <p><strong>Shipping Address:</strong><br/>${customerData.address}</p>
-      <p>We will notify you once your healthy treats are shipped.</p>
+      <p>We will notify you once your healthy treats are shipped. 🚚</p>
+
+      <!-- View Orders Button -->
+      <div style="text-align:center; margin: 30px 0;">
+        <a href="https://sun-cured-savories.vercel.app" 
+           style="background-color:#2d5016; color:#ffffff; padding:14px 32px; border-radius:30px; text-decoration:none; font-weight:bold; font-size:1rem; display:inline-block;">
+          🌿 View My Orders
+        </a>
+      </div>
+
+      <p style="font-size:0.85em; color:#888; text-align:center;">
+        Questions? Reply to this email or call us at <strong>+91 87964 46551</strong>
+      </p>
       <br/>
       <p>Warm Regards,<br/><strong>Team Sun-Cured Savories</strong></p>
       <hr style="border:none; border-top:1px solid #eee; margin: 20px 0;"/>
