@@ -120,7 +120,7 @@ export const createOrder = async (req: Request, res: Response) => {
           totalAmount: calculatedTotal,
           taxAmount: calculatedTaxTotal,
           paymentGateway: paymentGateway || "COD",
-          status: paymentGateway === "razorpay" ? "paid" : "pending",
+          status: "confirmed", // Set default order status to confirmed instead of pending
           customerName: customer.name,
           customerEmail: customer.email,
           customerPhone: customer.phone,
@@ -133,7 +133,7 @@ export const createOrder = async (req: Request, res: Response) => {
       try {
         const res: any = await db.execute(sql`
           INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address)
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, ${paymentGateway === 'razorpay' ? 'paid' : 'pending'}, ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
           RETURNING id, total_amount, tax_amount, status
         `);
         newOrder = res.rows ? res.rows[0] : res[0];

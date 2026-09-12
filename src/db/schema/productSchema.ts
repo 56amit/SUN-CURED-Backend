@@ -40,7 +40,7 @@ export const ordersTable = pgTable("orders", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   totalAmount: doublePrecision().notNull(),
   taxAmount: doublePrecision().default(0.0).notNull(),
-  status: varchar({ length: 50 }).default("pending").notNull(),
+  status: varchar({ length: 50 }).default("confirmed").notNull(),
   paymentStatus: varchar({ length: 50 }).default("pending").notNull(),
   paymentGateway: varchar({ length: 100 }),
   transactionId: varchar({ length: 255 }),
