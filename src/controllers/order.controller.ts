@@ -174,23 +174,27 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     }
 
-    // Send emails in background (no await — don't delay order response)
-    sendOrderEmails(
-      newOrder.id,
-      calculatedTotal,
-      {
-        name: customer.name,
-        email: customer.email,
-        phone: customer.phone || "N/A",
-        address: customer.address || "N/A",
-      },
-      resolvedItems.map((item) => ({
-        productName: item.productName,
-        quantity: item.quantity,
-        price: item.priceAtPurchase,
-      })),
-      calculatedTaxTotal
-    ).catch((emailErr) => console.error("Email send failed:", emailErr));
+    // Send emails — await is required on Vercel serverless (function terminates after res.json without it)
+    try {
+      await sendOrderEmails(
+        newOrder.id,
+        calculatedTotal,
+        {
+          name: customer.name,
+          email: customer.email,
+          phone: customer.phone || "N/A",
+          address: customer.address || "N/A",
+        },
+        resolvedItems.map((item) => ({
+          productName: item.productName,
+          quantity: item.quantity,
+          price: item.priceAtPurchase,
+        })),
+        calculatedTaxTotal
+      );
+    } catch (emailErr) {
+      console.error("Email send failed (non-fatal):", emailErr);
+    }
 
     return res.status(201).json({
       message: "Order placed successfully!",
