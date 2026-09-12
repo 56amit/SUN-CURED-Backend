@@ -174,8 +174,8 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     }
 
-    // Send emails in background
-    await sendOrderEmails(
+    // Send emails in background (no await — don't delay order response)
+    sendOrderEmails(
       newOrder.id,
       calculatedTotal,
       {
@@ -190,7 +190,7 @@ export const createOrder = async (req: Request, res: Response) => {
         price: item.priceAtPurchase,
       })),
       calculatedTaxTotal
-    ).catch(console.error);
+    ).catch((emailErr) => console.error("Email send failed:", emailErr));
 
     return res.status(201).json({
       message: "Order placed successfully!",
