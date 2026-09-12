@@ -120,86 +120,108 @@ export const sendOrderEmails = async (
     to: customerData.email,
     subject: `Order Confirmed! #${orderId} - Sun-Cured Savories`,
     html: `
-      <h2>Thank You for Your Order, ${customerData.name}! 🌿</h2>
-      <p>We have successfully received your order and are getting it ready for dispatch.</p>
-      
-      <div style="background-color: #fdfaf1; padding: 20px; border-radius: 12px; margin: 25px 0; border-left: 5px solid #2d5016;">
-        <h3 style="color: #2d5016; margin-top: 0; font-size: 1.4em;">Itadakimasu [いただきます]</h3>
-        <p style="font-style: italic; color: #555; font-size: 1.1em; margin-bottom: 10px;">"I humbly receive."</p>
-        <p style="color: #444; font-size: 0.95em; line-height: 1.6; margin: 0;">
-          Our motto is <strong>Sun, Soil and Sustainability</strong>. 
-          Every bite of our food carries a deep gratitude—to the sun that shined, the farmers who cared, the soil that nurtured, and the journey that brought it to your table. 
-          <br><br>
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1.0"/></head>
+<body style="margin:0; padding:0; background-color:#f4f4f4; font-family: Arial, sans-serif;">
+  <div style="max-width:620px; margin:30px auto; background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.08);">
+
+    <!-- Header -->
+    <div style="background-color:#2d5016; padding:30px 40px; text-align:center;">
+      <h1 style="color:#ffffff; margin:0; font-size:1.6em; letter-spacing:1px;">🌿 Sun-Cured Savories</h1>
+      <p style="color:#c8e6a0; margin:8px 0 0; font-size:0.9em;">Sun, Soil and Sustainability</p>
+    </div>
+
+    <!-- Greeting -->
+    <div style="padding:32px 40px 0;">
+      <h2 style="color:#2d5016; margin:0 0 10px; font-size:1.4em;">Thank You, ${customerData.name}! 🎉</h2>
+      <p style="color:#444; margin:0 0 20px; font-size:0.97em; line-height:1.6;">
+        We have successfully received your order <strong>#${orderId}</strong> and are getting it ready for dispatch.
+      </p>
+
+      <!-- Itadakimasu Box -->
+      <div style="background-color:#fdfaf1; padding:20px 24px; border-radius:10px; border-left:5px solid #2d5016; margin-bottom:28px;">
+        <h3 style="color:#2d5016; margin:0 0 6px; font-size:1.1em;">Itadakimasu [いただきます]</h3>
+        <p style="font-style:italic; color:#666; font-size:0.95em; margin:0 0 10px;">"I humbly receive."</p>
+        <p style="color:#555; font-size:0.88em; line-height:1.6; margin:0;">
+          Our motto is <strong>Sun, Soil and Sustainability</strong>. Every bite of our food carries deep gratitude — to the sun that shined, the farmers who cared, the soil that nurtured, and the journey that brought it to your table.
+          <br/><br/>
           <em>Itadakimasu is more than words; it is gratitude, respect and a promise to value every bite. Good for you, Good for nature.</em> 🌱
         </p>
       </div>
 
-      <h3>Your Items:</h3>
-      <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse; width:100%;">
-        <thead style="background:#f0f0f0;">
-          <tr>
-            <th style="text-align:left;">Product Name</th>
+      <!-- Order Items Table -->
+      <h3 style="color:#2d5016; margin:0 0 12px; font-size:1em;">Your Order Summary:</h3>
+      <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse; width:100%; font-size:0.9em; border-color:#e0e0e0;">
+        <thead>
+          <tr style="background-color:#2d5016; color:#ffffff;">
+            <th style="text-align:left; padding:10px 12px;">Product</th>
             <th style="text-align:center;">Qty</th>
-            <th style="text-align:right;">Price (each)</th>
+            <th style="text-align:right;">Price</th>
             <th style="text-align:right;">Subtotal</th>
           </tr>
         </thead>
         <tbody>
-          ${items.map(item => `
-          <tr>
-            <td>${item.productName}</td>
+          ${items.map((item, i) => `
+          <tr style="background:${i % 2 === 0 ? '#fff' : '#f9f9f9'};">
+            <td style="padding:10px 12px;">${item.productName}</td>
             <td style="text-align:center;">${item.quantity}</td>
             <td style="text-align:right;">₹${item.price}</td>
             <td style="text-align:right;">₹${(item.quantity * item.price).toFixed(2)}</td>
           </tr>`).join('')}
         </tbody>
-        <tfoot style="background:#f9f9f9; font-weight:bold;">
-          <tr>
-            <td colspan="3" style="text-align:right;">Items Subtotal:</td>
-            <td style="text-align:right;">₹${items.reduce((sum, item) => sum + item.quantity * item.price, 0).toFixed(2)}</td>
+        <tfoot>
+          <tr style="background:#f5f5f5;">
+            <td colspan="3" style="text-align:right; padding:10px 12px; font-weight:bold;">Items Subtotal:</td>
+            <td style="text-align:right; font-weight:bold;">₹${items.reduce((sum, item) => sum + item.quantity * item.price, 0).toFixed(2)}</td>
           </tr>
-          <tr>
-            <td colspan="3" style="text-align:right;">Shipping:</td>
+          <tr style="background:#f5f5f5;">
+            <td colspan="3" style="text-align:right; padding:6px 12px;">Shipping:</td>
             <td style="text-align:right;">${shippingCharge === 0 ? 'Free' : `₹${shippingCharge.toFixed(2)}`}</td>
           </tr>
-          <tr style="color: #666; font-size: 0.9em;">
-            <td colspan="3" style="text-align:right;">(Includes Taxes):</td>
+          <tr style="background:#f5f5f5; color:#666; font-size:0.85em;">
+            <td colspan="3" style="text-align:right; padding:6px 12px;">(Includes Taxes):</td>
             <td style="text-align:right;">₹${totalTaxAmount.toFixed(2)}</td>
           </tr>
-          <tr style="background:#e8f5e9; font-size:1.1em;">
-            <td colspan="3" style="text-align:right;">Grand Total:</td>
-            <td style="text-align:right;">₹${totalAmount.toFixed(2)}</td>
+          <tr style="background:#e8f5e9;">
+            <td colspan="3" style="text-align:right; padding:12px; font-size:1.05em; font-weight:bold; color:#2d5016;">Grand Total:</td>
+            <td style="text-align:right; font-size:1.05em; font-weight:bold; color:#2d5016;">₹${totalAmount.toFixed(2)}</td>
           </tr>
         </tfoot>
       </table>
-      <br/>
-      <p><strong>Order ID:</strong> #${orderId}</p>
-      <p><strong>Total Amount:</strong> ₹${totalAmount} (incl. ${shippingCharge === 0 ? 'Free' : `₹${shippingCharge}`} shipping)</p>
-      <p><strong>Shipping Address:</strong><br/>${customerData.address}</p>
-      <p>We will notify you once your healthy treats are shipped. 🚚</p>
 
-      <!-- View Orders Button -->
-      <div style="text-align:center; margin: 30px 0;">
-        <a href="https://sun-cured-savories.vercel.app" 
-           style="background-color:#2d5016; color:#ffffff; padding:14px 32px; border-radius:30px; text-decoration:none; font-weight:bold; font-size:1rem; display:inline-block;">
-          🌿 View My Orders
+      <!-- Delivery Info -->
+      <div style="margin:24px 0; padding:16px 20px; background:#f9f6f0; border-radius:10px; font-size:0.9em; color:#555;">
+        <p style="margin:0 0 6px;"><strong>📦 Order ID:</strong> #${orderId}</p>
+        <p style="margin:0 0 6px;"><strong>🚚 Shipping Address:</strong> ${customerData.address}</p>
+        <p style="margin:0;">We will notify you once your order is shipped!</p>
+      </div>
+
+      <!-- CTA Button -->
+      <div style="text-align:center; margin:28px 0;">
+        <a href="https://sun-cured-savories.vercel.app"
+           style="background-color:#2d5016; color:#ffffff; padding:14px 36px; border-radius:30px; text-decoration:none; font-weight:bold; font-size:1rem; display:inline-block;">
+          🌿 Visit Our Website
         </a>
       </div>
 
-      <p style="font-size:0.85em; color:#888; text-align:center;">
+      <p style="font-size:0.85em; color:#888; text-align:center; margin-bottom:0;">
         Questions? Reply to this email or call us at <strong>+91 87964 46551</strong>
       </p>
-      <br/>
-      <p>Warm Regards,<br/><strong>Team Sun-Cured Savories</strong></p>
-      <hr style="border:none; border-top:1px solid #eee; margin: 20px 0;"/>
-      <table style="width:100%; font-size:0.78rem; color:#999;" cellpadding="0" cellspacing="0">
-        <tr>
-          <td><strong style="color:#555;">Sun Cured Savories</strong></td>
-        </tr>
-        <tr><td>Plot no. 73, Shiva Enclave, Part-1, Garhi Harsaru, Gurgaon - 122052, Haryana</td></tr>
-        <tr><td style="padding-top:6px;">GST No: 06CTQPP8584H1ZS | PAN: CTQPP8584H | FSSAI: 12726998000058</td></tr>
-        <tr><td>📧 suncuredsavories@gmail.com | 📞 +91 87964 46551</td></tr>
-      </table>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin:30px 40px 0; padding:20px 0; border-top:1px solid #eee; font-size:0.78em; color:#999;">
+      <p style="margin:0 0 4px;"><strong style="color:#555;">Sun Cured Savories</strong></p>
+      <p style="margin:0 0 4px;">Plot no. 73, Shiva Enclave, Part-1, Garhi Harsaru, Gurgaon - 122052, Haryana</p>
+      <p style="margin:0 0 4px;">GST No: 06CTQPP8584H1ZS | PAN: CTQPP8584H | FSSAI: 12726998000058</p>
+      <p style="margin:0;">📧 suncuredsavories@gmail.com | 📞 +91 87964 46551</p>
+    </div>
+
+    <div style="height:24px;"></div>
+  </div>
+</body>
+</html>
     `,
   };
 
