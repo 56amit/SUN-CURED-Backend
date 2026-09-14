@@ -329,22 +329,37 @@ export const updateProduct = async (req: Request, res: Response) => {
 
       const finalVariants: Array<{ weight: string; price: number; status: string }> = [];
 
-      if (updatedWeight && updatedPrice !== undefined && !isNaN(updatedPrice)) {
+      // Pehle incoming variants ko prioritize karo
+      for (const v of parsedVariants) {
         finalVariants.push({
-          weight: updatedWeight,
-          price: updatedPrice,
-          status: "active",
+          weight: v.weight,
+          price: v.price,
+          status: v.status || "active",
         });
       }
 
-      for (const v of parsedVariants) {
-        if (!finalVariants.some((existing) => existing.weight.toLowerCase() === v.weight.toLowerCase())) {
+      // Phir check karo agar base product ka koi alag weight hai jo variants me nahi hai, toh usey add karo
+      if (updatedWeight && updatedPrice !== undefined && !isNaN(updatedPrice)) {
+        if (!finalVariants.some((existing) => existing.weight.toLowerCase() === updatedWeight.toLowerCase())) {
           finalVariants.push({
-            weight: v.weight,
-            price: v.price,
-            status: v.status || "active",
+            weight: updatedWeight,
+            price: updatedPrice,
+            status: "active",
           });
         }
+      }
+
+      // Sort variants by price so cheapest is first
+      finalVariants.sort((a, b) => a.price - b.price);
+
+      // Base product ka price cheapest variant ke price se sync kar do taaki UI par sahi price dikhe
+      if (finalVariants.length > 0) {
+        const cheapest = finalVariants[0];
+        updatedProduct.price = cheapest.price;
+        updatedProduct.weight = cheapest.weight;
+        await db.update(productsTable)
+          .set({ price: cheapest.price, weight: cheapest.weight })
+          .where(eq(productsTable.id, id));
       }
 
       await db.delete(productVariantsTable).where(eq(productVariantsTable.productId, id));
