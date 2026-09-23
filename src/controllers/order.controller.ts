@@ -205,6 +205,114 @@ export const createOrder = async (req: Request, res: Response) => {
   }
 };
 
+// Helper to safely fetch order items across snake_case / camelCase database schema variations
+async function fetchAllOrderItems(targetOrderId?: number) {
+  try {
+    let query;
+    if (targetOrderId) {
+      query = sql`
+        SELECT 
+          oi.id,
+          COALESCE(NULLIF((to_jsonb(oi)->>'order_id')::text, ''), NULLIF((to_jsonb(oi)->>'orderId')::text, '')) as "orderIdStr",
+          COALESCE(NULLIF((to_jsonb(oi)->>'product_id')::text, ''), NULLIF((to_jsonb(oi)->>'productId')::text, '')) as "productIdStr",
+          COALESCE(NULLIF((to_jsonb(oi)->>'quantity')::text, ''), '1')::int as quantity,
+          COALESCE(NULLIF((to_jsonb(oi)->>'price_at_purchase')::text, ''), NULLIF((to_jsonb(oi)->>'priceAtPurchase')::text, ''), '0')::double precision as "priceAtPurchase",
+          COALESCE(NULLIF((to_jsonb(oi)->>'tax_at_purchase')::text, ''), NULLIF((to_jsonb(oi)->>'taxAtPurchase')::text, ''), '5')::double precision as "taxAtPurchase",
+          p.name as "productName",
+          p.weight as "weight",
+          p.img as "productImage"
+        FROM order_items oi
+        LEFT JOIN products p ON (p.id = COALESCE(NULLIF((to_jsonb(oi)->>'product_id')::text, ''), NULLIF((to_jsonb(oi)->>'productId')::text, ''))::int)
+        WHERE COALESCE(NULLIF((to_jsonb(oi)->>'order_id')::text, ''), NULLIF((to_jsonb(oi)->>'orderId')::text, ''))::int = ${targetOrderId}
+      `;
+    } else {
+      query = sql`
+        SELECT 
+          oi.id,
+          COALESCE(NULLIF((to_jsonb(oi)->>'order_id')::text, ''), NULLIF((to_jsonb(oi)->>'orderId')::text, '')) as "orderIdStr",
+          COALESCE(NULLIF((to_jsonb(oi)->>'product_id')::text, ''), NULLIF((to_jsonb(oi)->>'productId')::text, '')) as "productIdStr",
+          COALESCE(NULLIF((to_jsonb(oi)->>'quantity')::text, ''), '1')::int as quantity,
+          COALESCE(NULLIF((to_jsonb(oi)->>'price_at_purchase')::text, ''), NULLIF((to_jsonb(oi)->>'priceAtPurchase')::text, ''), '0')::double precision as "priceAtPurchase",
+          COALESCE(NULLIF((to_jsonb(oi)->>'tax_at_purchase')::text, ''), NULLIF((to_jsonb(oi)->>'taxAtPurchase')::text, ''), '5')::double precision as "taxAtPurchase",
+          p.name as "productName",
+          p.weight as "weight",
+          p.img as "productImage"
+        FROM order_items oi
+        LEFT JOIN products p ON (p.id = COALESCE(NULLIF((to_jsonb(oi)->>'product_id')::text, ''), NULLIF((to_jsonb(oi)->>'productId')::text, ''))::int)
+      `;
+    }
+
+    const res: any = await db.execute(query);
+    const rows = res.rows || res || [];
+    return rows.map((r: any) => ({
+      id: r.id,
+      orderId: parseInt(r.orderIdStr || r.order_id || r.orderId || "0"),
+      productId: parseInt(r.productIdStr || r.product_id || r.productId || "0"),
+      quantity: parseInt(r.quantity || 1),
+      priceAtPurchase: parseFloat(r.priceAtPurchase || r.price_at_purchase || 0),
+      taxAtPurchase: parseFloat(r.taxAtPurchase || r.tax_at_purchase || 5),
+      name: r.productName || "Sun-Cured Product",
+      productName: r.productName || "Sun-Cured Product",
+      price: parseFloat(r.priceAtPurchase || r.price_at_purchase || 0),
+      taxRate: parseFloat(r.taxAtPurchase || r.tax_at_purchase || 5),
+      weight: r.weight || null,
+      productImage: r.productImage || null,
+    }));
+  } catch (err) {
+    console.error("fetchAllOrderItems sql query error, trying drizzle fallback:", err);
+    try {
+      let items;
+      if (targetOrderId) {
+        items = await db
+          .select({
+            id: orderItemsTable.id,
+            orderId: orderItemsTable.orderId,
+            productId: orderItemsTable.productId,
+            quantity: orderItemsTable.quantity,
+            priceAtPurchase: orderItemsTable.priceAtPurchase,
+            taxAtPurchase: orderItemsTable.taxAtPurchase,
+            name: productsTable.name,
+            productName: productsTable.name,
+            price: orderItemsTable.priceAtPurchase,
+            taxRate: orderItemsTable.taxAtPurchase,
+            weight: productsTable.weight,
+            productImage: productsTable.img,
+          })
+          .from(orderItemsTable)
+          .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
+          .where(eq(orderItemsTable.orderId, targetOrderId));
+      } else {
+        items = await db
+          .select({
+            id: orderItemsTable.id,
+            orderId: orderItemsTable.orderId,
+            productId: orderItemsTable.productId,
+            quantity: orderItemsTable.quantity,
+            priceAtPurchase: orderItemsTable.priceAtPurchase,
+            taxAtPurchase: orderItemsTable.taxAtPurchase,
+            name: productsTable.name,
+            productName: productsTable.name,
+            price: orderItemsTable.priceAtPurchase,
+            taxRate: orderItemsTable.taxAtPurchase,
+            weight: productsTable.weight,
+            productImage: productsTable.img,
+          })
+          .from(orderItemsTable)
+          .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id));
+      }
+      return items.map((it) => ({
+        ...it,
+        name: it.name || "Sun-Cured Product",
+        price: it.priceAtPurchase,
+        taxRate: it.taxAtPurchase !== undefined ? it.taxAtPurchase : 5,
+      }));
+    } catch (drizzleErr) {
+      console.error("Drizzle fallback error:", drizzleErr);
+      return [];
+    }
+  }
+}
+
 // 2. GET ALL ORDERS (Admin Only - Includes item details for Tax Invoice)
 export const getOrders = async (req: Request, res: Response) => {
   try {
@@ -217,35 +325,13 @@ export const getOrders = async (req: Request, res: Response) => {
       return res.status(200).json([]);
     }
 
-    // Fetch all order items and join with product details
-    const allItems = await db
-      .select({
-        id: orderItemsTable.id,
-        orderId: orderItemsTable.orderId,
-        productId: orderItemsTable.productId,
-        quantity: orderItemsTable.quantity,
-        priceAtPurchase: orderItemsTable.priceAtPurchase,
-        taxAtPurchase: orderItemsTable.taxAtPurchase,
-        name: productsTable.name,
-        productName: productsTable.name,
-        price: orderItemsTable.priceAtPurchase,
-        taxRate: orderItemsTable.taxAtPurchase,
-        weight: productsTable.weight,
-        productImage: productsTable.img
-      })
-      .from(orderItemsTable)
-      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id));
+    const allItems = await fetchAllOrderItems();
 
     const ordersWithItems = allOrders.map((ord) => {
       const items = allItems.filter((it) => it.orderId === ord.id);
       return {
         ...ord,
-        items: items.map((it) => ({
-          ...it,
-          name: it.productName || "Product",
-          price: it.priceAtPurchase,
-          taxRate: it.taxAtPurchase !== undefined ? it.taxAtPurchase : 5,
-        })),
+        items,
       };
     });
 
@@ -327,22 +413,7 @@ export const getOrderItems = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid order ID." });
     }
 
-    // Fetch order items and join with products table to get product names and images
-    const items = await db
-      .select({
-        id: orderItemsTable.id,
-        orderId: orderItemsTable.orderId,
-        productId: orderItemsTable.productId,
-        quantity: orderItemsTable.quantity,
-        priceAtPurchase: orderItemsTable.priceAtPurchase,
-        taxAtPurchase: orderItemsTable.taxAtPurchase,
-        productName: productsTable.name,
-        productImage: productsTable.img
-      })
-      .from(orderItemsTable)
-      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
-      .where(eq(orderItemsTable.orderId, id));
-
+    const items = await fetchAllOrderItems(id);
     return res.status(200).json(items);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
@@ -368,24 +439,7 @@ export const getOrderById = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Order not found" });
     }
 
-    const items = await db
-      .select({
-        id: orderItemsTable.id,
-        orderId: orderItemsTable.orderId,
-        productId: orderItemsTable.productId,
-        quantity: orderItemsTable.quantity,
-        priceAtPurchase: orderItemsTable.priceAtPurchase,
-        taxAtPurchase: orderItemsTable.taxAtPurchase,
-        name: productsTable.name,
-        productName: productsTable.name,
-        price: orderItemsTable.priceAtPurchase,
-        taxRate: orderItemsTable.taxAtPurchase,
-        productImage: productsTable.img
-      })
-      .from(orderItemsTable)
-      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
-      .where(eq(orderItemsTable.orderId, id));
-
+    const items = await fetchAllOrderItems(id);
     return res.status(200).json({ ...order, items });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
