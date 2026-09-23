@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import db from "../db/config/db.connect";
-import { categoriesTable, taxesTable } from "../db/schema/productSchema";
+import { categoriesTable, taxesTable, productsTable } from "../db/schema/productSchema";
 import { eq } from "drizzle-orm";
 
 // 1. GET ALL CATEGORIES
@@ -109,6 +109,18 @@ export const deleteCategory = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid category ID." });
     }
 
+    // Check if any products are linked to this category
+    const productsUsingCat = await db
+      .select()
+      .from(productsTable)
+      .where(eq(productsTable.catId, id));
+
+    if (productsUsingCat.length > 0) {
+      return res.status(400).json({
+        error: `Yeh Category ${productsUsingCat.length} Product(s) se linked hai. Pehle un products ki Category change karein.`
+      });
+    }
+
     const [deletedCategory] = await db
       .delete(categoriesTable)
       .where(eq(categoriesTable.id, id))
@@ -122,6 +134,6 @@ export const deleteCategory = async (req: Request, res: Response) => {
       .status(200)
       .json({ message: "Category delete ho gayi.", deletedCategory });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || "Could not delete category." });
   }
 };

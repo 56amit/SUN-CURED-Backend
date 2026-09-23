@@ -205,14 +205,51 @@ export const createOrder = async (req: Request, res: Response) => {
   }
 };
 
-// 2. GET ALL ORDERS (Admin Only)
+// 2. GET ALL ORDERS (Admin Only - Includes item details for Tax Invoice)
 export const getOrders = async (req: Request, res: Response) => {
   try {
     const allOrders = await db
       .select()
       .from(ordersTable)
       .orderBy(desc(ordersTable.id));
-    return res.status(200).json(allOrders);
+
+    if (allOrders.length === 0) {
+      return res.status(200).json([]);
+    }
+
+    // Fetch all order items and join with product details
+    const allItems = await db
+      .select({
+        id: orderItemsTable.id,
+        orderId: orderItemsTable.orderId,
+        productId: orderItemsTable.productId,
+        quantity: orderItemsTable.quantity,
+        priceAtPurchase: orderItemsTable.priceAtPurchase,
+        taxAtPurchase: orderItemsTable.taxAtPurchase,
+        name: productsTable.name,
+        productName: productsTable.name,
+        price: orderItemsTable.priceAtPurchase,
+        taxRate: orderItemsTable.taxAtPurchase,
+        weight: productsTable.weight,
+        productImage: productsTable.img
+      })
+      .from(orderItemsTable)
+      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id));
+
+    const ordersWithItems = allOrders.map((ord) => {
+      const items = allItems.filter((it) => it.orderId === ord.id);
+      return {
+        ...ord,
+        items: items.map((it) => ({
+          ...it,
+          name: it.productName || "Product",
+          price: it.priceAtPurchase,
+          taxRate: it.taxAtPurchase !== undefined ? it.taxAtPurchase : 5,
+        })),
+      };
+    });
+
+    return res.status(200).json(ordersWithItems);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
@@ -253,19 +290,21 @@ export const getMyOrders = async (req: Request | any, res: Response) => {
 export const updateOrderStatus = async (req: Request, res: Response) => {
   try {
     const id = parseInt(String(req.params.id));
-    const { status, paymentStatus, transactionId } = req.body;
+    const { status, orderStatus, paymentStatus, transactionId } = req.body;
+    const newStatus = status || orderStatus;
 
     if (isNaN(id)) {
       return res.status(400).json({ error: "Invalid order ID." });
     }
 
+    const updateFields: Record<string, any> = {};
+    if (newStatus !== undefined) updateFields.status = newStatus;
+    if (paymentStatus !== undefined) updateFields.paymentStatus = paymentStatus;
+    if (transactionId !== undefined) updateFields.transactionId = transactionId;
+
     const [updatedOrder] = await db
       .update(ordersTable)
-      .set({
-        status,
-        paymentStatus,
-        transactionId,
-      })
+      .set(updateFields)
       .where(eq(ordersTable.id, id))
       .returning();
 
@@ -305,6 +344,49 @@ export const getOrderItems = async (req: Request, res: Response) => {
       .where(eq(orderItemsTable.orderId, id));
 
     return res.status(200).json(items);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message });
+  }
+};
+
+// 5. GET SINGLE ORDER WITH ITEMS
+export const getOrderById = async (req: Request, res: Response) => {
+  try {
+    const id = parseInt(String(req.params.id));
+
+    if (isNaN(id)) {
+      return res.status(400).json({ error: "Invalid order ID." });
+    }
+
+    const [order] = await db
+      .select()
+      .from(ordersTable)
+      .where(eq(ordersTable.id, id))
+      .limit(1);
+
+    if (!order) {
+      return res.status(404).json({ error: "Order not found" });
+    }
+
+    const items = await db
+      .select({
+        id: orderItemsTable.id,
+        orderId: orderItemsTable.orderId,
+        productId: orderItemsTable.productId,
+        quantity: orderItemsTable.quantity,
+        priceAtPurchase: orderItemsTable.priceAtPurchase,
+        taxAtPurchase: orderItemsTable.taxAtPurchase,
+        name: productsTable.name,
+        productName: productsTable.name,
+        price: orderItemsTable.priceAtPurchase,
+        taxRate: orderItemsTable.taxAtPurchase,
+        productImage: productsTable.img
+      })
+      .from(orderItemsTable)
+      .leftJoin(productsTable, eq(orderItemsTable.productId, productsTable.id))
+      .where(eq(orderItemsTable.orderId, id));
+
+    return res.status(200).json({ ...order, items });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import db from "../db/config/db.connect";
-import { taxesTable } from "../db/schema/productSchema";
+import { taxesTable, categoriesTable, productsTable } from "../db/schema/productSchema";
 import { eq } from "drizzle-orm";
 
 // 1. GET ALL TAX SLABS
@@ -81,6 +81,24 @@ export const deleteTax = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid tax ID." });
     }
 
+    // Check if any categories are linked to this tax slab
+    const categoriesUsingTax = await db
+      .select()
+      .from(categoriesTable)
+      .where(eq(categoriesTable.taxId, id));
+
+    if (categoriesUsingTax.length > 0) {
+      return res.status(400).json({
+        error: `Yeh Tax Slab ${categoriesUsingTax.length} Category(s) se linked hai. Pehle un categories ka Tax Slab change ya remove karein.`
+      });
+    }
+
+    // Unlink any direct product tax associations before deleting
+    await db
+      .update(productsTable)
+      .set({ taxId: null })
+      .where(eq(productsTable.taxId, id));
+
     // Database se delete kar rahe hain where id matches
     const [deletedTax] = await db
       .delete(taxesTable)
@@ -95,6 +113,6 @@ export const deleteTax = async (req: Request, res: Response) => {
       .status(200)
       .json({ message: "Tax slab delete ho gaya.", deletedTax });
   } catch (error: any) {
-    return res.status(500).json({ error: error.message });
+    return res.status(500).json({ error: error.message || "Could not delete tax slab." });
   }
 };
