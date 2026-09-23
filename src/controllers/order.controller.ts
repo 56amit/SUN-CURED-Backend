@@ -9,7 +9,7 @@ import {
 } from "../db/schema/productSchema";
 import { usersTable } from "../db/schema/userSchema";
 import { eq, desc, sql } from "drizzle-orm";
-import { sendOrderEmails } from "../utils/mailer";
+import { sendOrderEmails, sendStatusUpdateEmail } from "../utils/mailer";
 
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
 export const createOrder = async (req: Request, res: Response) => {
@@ -111,7 +111,7 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     }
 
-    // Finally, new order database me save karte hain
+    // Finally, new order database me save karte hain (Initial status = "Pending")
     let newOrder: any = null;
     try {
       const [ord] = await db
@@ -120,7 +120,7 @@ export const createOrder = async (req: Request, res: Response) => {
           totalAmount: calculatedTotal,
           taxAmount: calculatedTaxTotal,
           paymentGateway: paymentGateway || "COD",
-          status: "confirmed", // Set default order status to confirmed instead of pending
+          status: "Pending", // Initial status: Pending (until Admin approves/confirms)
           customerName: customer.name,
           customerEmail: customer.email,
           customerPhone: customer.phone,
@@ -133,14 +133,14 @@ export const createOrder = async (req: Request, res: Response) => {
       try {
         const res: any = await db.execute(sql`
           INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address)
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Pending', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
           RETURNING id, total_amount, tax_amount, status
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
       } catch (sqlErr1) {
         const res: any = await db.execute(sql`
           INSERT INTO orders ("totalAmount", "taxAmount", "paymentGateway", status, "customerName", "customerEmail", "customerPhone", "shippingAddress")
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, ${paymentGateway === 'razorpay' ? 'paid' : 'pending'}, ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Pending', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
           RETURNING id
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
@@ -396,6 +396,19 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
 
     if (!updatedOrder) {
       return res.status(404).json({ error: "Order record nahi mila." });
+    }
+
+    // Trigger email notification to customer about the order status update
+    if (newStatus && updatedOrder.customerEmail) {
+      try {
+        await sendStatusUpdateEmail(
+          updatedOrder.id,
+          { name: updatedOrder.customerName || "Customer", email: updatedOrder.customerEmail },
+          newStatus
+        );
+      } catch (emailErr) {
+        console.error("Status update email send failed (non-fatal):", emailErr);
+      }
     }
 
     return res.status(200).json(updatedOrder);

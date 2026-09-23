@@ -241,3 +241,72 @@ export const sendOrderEmails = async (
     console.error(`Failed to send Customer email to ${customerData.email} for Order #${orderId}:`, customerError);
   }
 };
+
+export const sendStatusUpdateEmail = async (
+  orderId: number | string,
+  customerData: { name: string; email: string },
+  newStatus: string
+) => {
+  if (!emailUser || !emailPass || !customerData.email) return;
+
+  let statusMessage = "";
+  let statusColor = "#2d5016";
+  let statusEmoji = "📦";
+
+  switch (newStatus.toLowerCase()) {
+    case "confirmed":
+      statusMessage = "Your order has been accepted and confirmed by Sun-Cured Savories! We are preparing it for dispatch.";
+      statusColor = "#1e40af";
+      statusEmoji = "🎉";
+      break;
+    case "shipped":
+      statusMessage = "Great news! Your order has been shipped and is on its way to your delivery address.";
+      statusColor = "#6b21a8";
+      statusEmoji = "🚚";
+      break;
+    case "delivered":
+      statusMessage = "Your order has been successfully delivered! We hope you enjoy your healthy solar-dried snacks.";
+      statusColor = "#15803d";
+      statusEmoji = "🟢";
+      break;
+    case "cancelled":
+      statusMessage = "Your order has been cancelled. If you have any questions, please contact our support.";
+      statusColor = "#b91c1c";
+      statusEmoji = "❌";
+      break;
+    default:
+      statusMessage = `Your order status has been updated to: ${newStatus}`;
+  }
+
+  const mailOptions = {
+    from: `"Sun-Cured Savories" <${emailUser}>`,
+    to: customerData.email,
+    subject: `${statusEmoji} Order Status Update: #${orderId} is ${newStatus} - Sun-Cured Savories`,
+    html: `
+      <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.08);">
+        <div style="background-color: #2d5016; padding: 25px; text-align: center;">
+          <h1 style="color: #ffffff; margin: 0; font-size: 1.5em;">🌿 Sun-Cured Savories</h1>
+        </div>
+        <div style="padding: 30px;">
+          <h2 style="color: ${statusColor}; margin-top: 0;">Hi ${customerData.name}, ${statusEmoji}</h2>
+          <p style="font-size: 1em; color: #444; line-height: 1.6;">
+            Your Order <strong>#${orderId}</strong> status has been updated to: <span style="background: ${statusColor}; color: white; padding: 4px 10px; border-radius: 15px; font-weight: bold; font-size: 0.9em;">${newStatus.toUpperCase()}</span>
+          </p>
+          <div style="background: #f9f9f9; border-left: 4px solid ${statusColor}; padding: 15px; border-radius: 6px; margin: 20px 0; font-size: 0.95em; color: #555;">
+            ${statusMessage}
+          </div>
+          <div style="text-align: center; margin-top: 30px;">
+            <a href="https://suncuredsavories.com" style="background-color: #2d5016; color: #ffffff; padding: 12px 28px; border-radius: 25px; text-decoration: none; font-weight: bold; font-size: 0.9em;">View Order History</a>
+          </div>
+        </div>
+      </div>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    console.log(`Status update email sent to ${customerData.email} for Order #${orderId}`);
+  } catch (err) {
+    console.error(`Failed to send status update email to ${customerData.email}:`, err);
+  }
+};
