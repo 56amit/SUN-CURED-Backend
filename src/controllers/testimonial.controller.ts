@@ -51,10 +51,12 @@ export const getApprovedTestimonials = async (req: Request, res: Response) => {
   }
 };
 
-// 3. Get All Testimonials (Admin)
+// 3. Get All Testimonials / Reviews (Admin & General)
 export const getAllTestimonials = async (req: Request, res: Response) => {
   try {
-    const testimonials = await db
+    const { status } = req.query;
+
+    let query = db
       .select({
         id: testimonialsTable.id,
         rating: testimonialsTable.rating,
@@ -72,7 +74,39 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
       .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
       .orderBy(desc(testimonialsTable.createdAt));
 
-    return res.status(200).json(testimonials);
+    let testimonials;
+    if (status && typeof status === "string") {
+      testimonials = await db
+        .select({
+          id: testimonialsTable.id,
+          rating: testimonialsTable.rating,
+          content: testimonialsTable.content,
+          status: testimonialsTable.status,
+          createdAt: testimonialsTable.createdAt,
+          user: {
+            id: usersTable.id,
+            firstName: usersTable.firstName,
+            lastName: usersTable.lastName,
+            email: usersTable.email
+          }
+        })
+        .from(testimonialsTable)
+        .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
+        .where(eq(testimonialsTable.status, status))
+        .orderBy(desc(testimonialsTable.createdAt));
+    } else {
+      testimonials = await query;
+    }
+
+    const formatted = testimonials.map((t) => ({
+      ...t,
+      _id: String(t.id),
+      id: String(t.id),
+      name: t.user?.firstName ? `${t.user.firstName} ${t.user.lastName || ""}`.trim() : "Anonymous User",
+      message: t.content,
+    }));
+
+    return res.status(200).json(formatted);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

@@ -60,6 +60,7 @@ app.use("/api/dashboard", dashboardRouter);
 app.use("/api/orders", orderRouter);
 app.use("/api/users", userRouter);
 app.use("/api/testimonials", testimonialRouter);
+app.use("/api/reviews", testimonialRouter);
 app.use("/api/payment", paymentRouter);
 
 // Global Error Handler Middleware
