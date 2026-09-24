@@ -315,28 +315,34 @@ async function fetchAllOrderItems(targetOrderId?: number) {
   }
 }
 
-// 2. GET ALL ORDERS — Cursor-based Pagination (Admin)
-// Usage: GET /api/orders?limit=20&cursor=<lastOrderId>
+// 2. GET ALL ORDERS
+// Plain array by default (backward compatible)
+// Paginated response when ?paginate=true (admin panel)
 export const getOrders = async (req: Request, res: Response) => {
   try {
+    const isPaginated = req.query.paginate === "true";
     const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
     const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
-    // Cursor pagination: id < cursor (newest first)
-    const conditions = cursor ? sql`id < ${cursor}` : undefined;
+    const conditions = isPaginated && cursor ? sql`id < ${cursor}` : undefined;
 
-    const paginatedOrders = await db
+    const queryBuilder = db
       .select()
       .from(ordersTable)
       .where(conditions)
-      .orderBy(desc(ordersTable.id))
-      .limit(limit + 1); // +1 to check if there's a next page
+      .orderBy(desc(ordersTable.id));
 
-    const hasNextPage = paginatedOrders.length > limit;
+    const paginatedOrders = isPaginated
+      ? await queryBuilder.limit(limit + 1)
+      : await queryBuilder;
+
+    const hasNextPage = isPaginated && paginatedOrders.length > limit;
     const orders = hasNextPage ? paginatedOrders.slice(0, limit) : paginatedOrders;
 
     if (orders.length === 0) {
-      return res.status(200).json({ data: [], nextCursor: null, hasNextPage: false });
+      return isPaginated
+        ? res.status(200).json({ data: [], nextCursor: null, hasNextPage: false })
+        : res.status(200).json([]);
     }
 
     const orderIds = orders.map((o) => o.id);
@@ -348,13 +354,13 @@ export const getOrders = async (req: Request, res: Response) => {
       items: filteredItems.filter((it) => it.orderId === ord.id),
     }));
 
-    const nextCursor = hasNextPage ? orders[orders.length - 1].id : null;
+    if (isPaginated) {
+      const nextCursor = hasNextPage ? orders[orders.length - 1].id : null;
+      return res.status(200).json({ data: ordersWithItems, nextCursor, hasNextPage });
+    }
 
-    return res.status(200).json({
-      data: ordersWithItems,
-      nextCursor,
-      hasNextPage,
-    });
+    // Plain array (default)
+    return res.status(200).json(ordersWithItems);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

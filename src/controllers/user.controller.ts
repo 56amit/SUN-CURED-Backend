@@ -4,23 +4,27 @@ import { usersTable } from "../db/schema/userSchema";
 import { eq, desc, lt, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
-// 1. Get All Users — Cursor-based Pagination (Admin)
-// Usage: GET /api/users?limit=20&cursor=<lastUserId>
+// 1. Get All Users
+// Plain array by default | Paginated when ?paginate=true
 export const getUsers = async (req: Request, res: Response) => {
   try {
+    const isPaginated = req.query.paginate === "true";
     const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
     const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
-    const whereClause = cursor ? lt(usersTable.id, cursor) : undefined;
+    const whereClause = isPaginated && cursor ? lt(usersTable.id, cursor) : undefined;
 
-    const paginatedUsers = await db
+    const queryBuilder = db
       .select()
       .from(usersTable)
       .where(whereClause)
-      .orderBy(desc(usersTable.id))
-      .limit(limit + 1);
+      .orderBy(desc(usersTable.id));
 
-    const hasNextPage = paginatedUsers.length > limit;
+    const paginatedUsers = isPaginated
+      ? await queryBuilder.limit(limit + 1)
+      : await queryBuilder;
+
+    const hasNextPage = isPaginated && paginatedUsers.length > limit;
     const users = hasNextPage ? paginatedUsers.slice(0, limit) : paginatedUsers;
 
     const sanitizedUsers = users.map((u) => {
@@ -28,13 +32,12 @@ export const getUsers = async (req: Request, res: Response) => {
       return safeUser;
     });
 
-    const nextCursor = hasNextPage ? users[users.length - 1].id : null;
+    if (isPaginated) {
+      const nextCursor = hasNextPage ? users[users.length - 1].id : null;
+      return res.status(200).json({ data: sanitizedUsers, nextCursor, hasNextPage });
+    }
 
-    return res.status(200).json({
-      data: sanitizedUsers,
-      nextCursor,
-      hasNextPage,
-    });
+    return res.status(200).json(sanitizedUsers);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

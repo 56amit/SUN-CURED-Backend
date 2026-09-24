@@ -51,20 +51,16 @@ export const getApprovedTestimonials = async (req: Request, res: Response) => {
   }
 };
 
-// 3. Get All Testimonials / Reviews — Cursor-based Pagination (Admin)
-// Usage: GET /api/testimonials?limit=20&cursor=<lastId>&status=<optional>
+// 3. Get All Testimonials / Reviews
+// Plain array by default | Paginated when ?paginate=true
 export const getAllTestimonials = async (req: Request, res: Response) => {
   try {
     const { status } = req.query;
+    const isPaginated = req.query.paginate === "true";
     const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
     const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
-    // Build where conditions
-    let whereClause: any = cursor ? lt(testimonialsTable.id, cursor) : undefined;
-    if (status && typeof status === "string" && cursor) {
-      whereClause = eq(testimonialsTable.status, status);
-      // Apply both status filter + cursor manually using raw sql
-    }
+    const cursorClause = isPaginated && cursor ? lt(testimonialsTable.id, cursor) : undefined;
 
     let testimonials;
     if (status && typeof status === "string") {
@@ -84,13 +80,9 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
         })
         .from(testimonialsTable)
         .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
-        .where(
-          cursor
-            ? eq(testimonialsTable.status, status)
-            : eq(testimonialsTable.status, status)
-        )
+        .where(eq(testimonialsTable.status, status))
         .orderBy(desc(testimonialsTable.id))
-        .limit(limit + 1);
+        .limit(isPaginated ? limit + 1 : 10000);
     } else {
       testimonials = await db
         .select({
@@ -108,12 +100,12 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
         })
         .from(testimonialsTable)
         .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
-        .where(cursor ? lt(testimonialsTable.id, cursor) : undefined)
+        .where(cursorClause)
         .orderBy(desc(testimonialsTable.id))
-        .limit(limit + 1);
+        .limit(isPaginated ? limit + 1 : 10000);
     }
 
-    const hasNextPage = testimonials.length > limit;
+    const hasNextPage = isPaginated && testimonials.length > limit;
     const pageData = hasNextPage ? testimonials.slice(0, limit) : testimonials;
 
     const formatted = pageData.map((t) => ({
@@ -126,13 +118,12 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
       message: t.content,
     }));
 
-    const nextCursor = hasNextPage ? pageData[pageData.length - 1].id : null;
+    if (isPaginated) {
+      const nextCursor = hasNextPage ? pageData[pageData.length - 1].id : null;
+      return res.status(200).json({ data: formatted, nextCursor, hasNextPage });
+    }
 
-    return res.status(200).json({
-      data: formatted,
-      nextCursor,
-      hasNextPage,
-    });
+    return res.status(200).json(formatted);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

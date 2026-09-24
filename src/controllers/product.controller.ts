@@ -54,35 +54,42 @@ function parseVariantsInput(rawVariants: any): Array<{ weight: string; price: nu
     .filter((v) => v.weight && !isNaN(v.price));
 }
 
-// 1. GET ALL PRODUCTS — Cursor-based Pagination
-// Usage: GET /api/products?limit=20&cursor=<lastProductId>&catId=<optional>
+// 1. GET ALL PRODUCTS
+// Plain array by default (frontend compatible)
+// Paginated response when ?paginate=true (admin panel)
+// Usage: GET /api/products?paginate=true&limit=20&cursor=<lastProductId>&catId=<optional>
 export const getProducts = async (req: Request, res: Response) => {
   try {
     await ensureVariantsTable();
 
     const catIdQuery = req.query.catId ? parseInt(req.query.catId as string) : null;
+    const isPaginated = req.query.paginate === "true";
     const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
     const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
     // Build where conditions
     let whereClause: any = undefined;
-    if (catIdQuery && !isNaN(catIdQuery) && cursor) {
+    if (catIdQuery && !isNaN(catIdQuery) && cursor && isPaginated) {
       whereClause = sql`${productsTable.catId} = ${catIdQuery} AND ${productsTable.id} < ${cursor}`;
     } else if (catIdQuery && !isNaN(catIdQuery)) {
       whereClause = eq(productsTable.catId, catIdQuery);
-    } else if (cursor) {
+    } else if (cursor && isPaginated) {
       whereClause = lt(productsTable.id, cursor);
     }
 
-    const paginatedProducts = await db
+    const queryBuilder = db
       .select()
       .from(productsTable)
       .where(whereClause)
-      .orderBy(desc(productsTable.id))
-      .limit(limit + 1);
+      .orderBy(desc(productsTable.id));
 
-    const hasNextPage = paginatedProducts.length > limit;
-    const allProducts = hasNextPage ? paginatedProducts.slice(0, limit) : paginatedProducts;
+    // Only limit when paginating
+    const rawProducts = isPaginated
+      ? await queryBuilder.limit(limit + 1)
+      : await queryBuilder;
+
+    const hasNextPage = isPaginated && rawProducts.length > limit;
+    const allProducts = hasNextPage ? rawProducts.slice(0, limit) : rawProducts;
 
     let allVariants: any[] = [];
     try {
@@ -97,6 +104,7 @@ export const getProducts = async (req: Request, res: Response) => {
     for (const p of allProducts) {
       const nameKey = p.name.trim().toLowerCase();
 
+      // Only use variants stored in DB — normalize weight format
       let prodVariants = allVariants
         .filter((v) => v.productId === p.id)
         .map((v) => ({
@@ -104,6 +112,7 @@ export const getProducts = async (req: Request, res: Response) => {
           weight: (v.weight || "").replace(/gm$/i, "g").trim(),
         }));
 
+      // Fallback: if no variants in DB at all, use the product's own weight/price
       if (prodVariants.length === 0 && p.weight) {
         prodVariants = [
           {
@@ -138,13 +147,15 @@ export const getProducts = async (req: Request, res: Response) => {
     }
 
     const productsResult = Array.from(groupedMap.values());
-    const nextCursor = hasNextPage ? allProducts[allProducts.length - 1].id : null;
 
-    return res.status(200).json({
-      data: productsResult,
-      nextCursor,
-      hasNextPage,
-    });
+    // Paginated response for admin panel
+    if (isPaginated) {
+      const nextCursor = hasNextPage ? allProducts[allProducts.length - 1].id : null;
+      return res.status(200).json({ data: productsResult, nextCursor, hasNextPage });
+    }
+
+    // Plain array for frontend (backward compatible)
+    return res.status(200).json(productsResult);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
