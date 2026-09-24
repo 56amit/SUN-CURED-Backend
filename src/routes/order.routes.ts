@@ -17,6 +17,9 @@ router.post("/", createOrder);
 // User-only route: Fetch own orders
 router.get("/my-orders", verifyAdmin, getMyOrders);
 
+// User-accessible: Get single order by ID (for order details view in profile)
+router.get("/detail/:id", getOrderById);
+
 // Admin-only routes: Orders history dekhne aur order update karne ke liye
 router.post("/create", verifyAdmin, createOrder);
 router.get("/", verifyAdmin, getOrders);
