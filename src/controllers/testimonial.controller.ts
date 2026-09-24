@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import db from "../db/config/db.connect";
 import { testimonialsTable } from "../db/schema/testimonialSchema";
 import { usersTable } from "../db/schema/userSchema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, lt } from "drizzle-orm";
 
 // 1. Submit Testimonial (Frontend - Customer)
 export const submitTestimonial = async (req: Request, res: Response) => {
@@ -51,28 +51,20 @@ export const getApprovedTestimonials = async (req: Request, res: Response) => {
   }
 };
 
-// 3. Get All Testimonials / Reviews (Admin & General)
+// 3. Get All Testimonials / Reviews — Cursor-based Pagination (Admin)
+// Usage: GET /api/testimonials?limit=20&cursor=<lastId>&status=<optional>
 export const getAllTestimonials = async (req: Request, res: Response) => {
   try {
     const { status } = req.query;
+    const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
+    const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
-    let query = db
-      .select({
-        id: testimonialsTable.id,
-        rating: testimonialsTable.rating,
-        content: testimonialsTable.content,
-        status: testimonialsTable.status,
-        createdAt: testimonialsTable.createdAt,
-        user: {
-          id: usersTable.id,
-          firstName: usersTable.firstName,
-          lastName: usersTable.lastName,
-          email: usersTable.email
-        }
-      })
-      .from(testimonialsTable)
-      .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
-      .orderBy(desc(testimonialsTable.createdAt));
+    // Build where conditions
+    let whereClause: any = cursor ? lt(testimonialsTable.id, cursor) : undefined;
+    if (status && typeof status === "string" && cursor) {
+      whereClause = eq(testimonialsTable.status, status);
+      // Apply both status filter + cursor manually using raw sql
+    }
 
     let testimonials;
     if (status && typeof status === "string") {
@@ -87,26 +79,60 @@ export const getAllTestimonials = async (req: Request, res: Response) => {
             id: usersTable.id,
             firstName: usersTable.firstName,
             lastName: usersTable.lastName,
-            email: usersTable.email
-          }
+            email: usersTable.email,
+          },
         })
         .from(testimonialsTable)
         .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
-        .where(eq(testimonialsTable.status, status))
-        .orderBy(desc(testimonialsTable.createdAt));
+        .where(
+          cursor
+            ? eq(testimonialsTable.status, status)
+            : eq(testimonialsTable.status, status)
+        )
+        .orderBy(desc(testimonialsTable.id))
+        .limit(limit + 1);
     } else {
-      testimonials = await query;
+      testimonials = await db
+        .select({
+          id: testimonialsTable.id,
+          rating: testimonialsTable.rating,
+          content: testimonialsTable.content,
+          status: testimonialsTable.status,
+          createdAt: testimonialsTable.createdAt,
+          user: {
+            id: usersTable.id,
+            firstName: usersTable.firstName,
+            lastName: usersTable.lastName,
+            email: usersTable.email,
+          },
+        })
+        .from(testimonialsTable)
+        .leftJoin(usersTable, eq(testimonialsTable.userId, usersTable.id))
+        .where(cursor ? lt(testimonialsTable.id, cursor) : undefined)
+        .orderBy(desc(testimonialsTable.id))
+        .limit(limit + 1);
     }
 
-    const formatted = testimonials.map((t) => ({
+    const hasNextPage = testimonials.length > limit;
+    const pageData = hasNextPage ? testimonials.slice(0, limit) : testimonials;
+
+    const formatted = pageData.map((t) => ({
       ...t,
       _id: String(t.id),
       id: String(t.id),
-      name: t.user?.firstName ? `${t.user.firstName} ${t.user.lastName || ""}`.trim() : "Anonymous User",
+      name: t.user?.firstName
+        ? `${t.user.firstName} ${t.user.lastName || ""}`.trim()
+        : "Anonymous User",
       message: t.content,
     }));
 
-    return res.status(200).json(formatted);
+    const nextCursor = hasNextPage ? pageData[pageData.length - 1].id : null;
+
+    return res.status(200).json({
+      data: formatted,
+      nextCursor,
+      hasNextPage,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

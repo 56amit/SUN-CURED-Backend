@@ -104,10 +104,15 @@ export const verifyPayment = async (req: Request, res: Response) => {
       .digest("hex");
 
     if (generated_signature === razorpay_signature) {
-      // Payment is successful, update DB order status
+      // Payment is successful — update both status + paymentStatus + transactionId
       await db
         .update(ordersTable)
-        .set({ status: "paid", paymentGateway: "razorpay" })
+        .set({
+          status: "Confirmed",
+          paymentStatus: "paid",
+          transactionId: razorpay_payment_id,
+          paymentGateway: "razorpay",
+        })
         .where(eq(ordersTable.id, parseInt(orderId)));
 
       return res.status(200).json({ success: true, message: "Payment verified successfully" });

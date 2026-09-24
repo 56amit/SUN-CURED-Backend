@@ -1,8 +1,9 @@
 import { Router } from "express";
-import { initiatePayment } from "../controllers/payment.controller";
+import { initiatePayment, verifyPayment } from "../controllers/payment.controller";
 
 const router: Router = Router();
 
 router.post("/initiate", initiatePayment);
+router.post("/verify", verifyPayment);
 
 export default router;

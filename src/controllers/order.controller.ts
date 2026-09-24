@@ -8,7 +8,7 @@ import {
   taxesTable,
 } from "../db/schema/productSchema";
 import { usersTable } from "../db/schema/userSchema";
-import { eq, desc, sql } from "drizzle-orm";
+import { eq, desc, sql, lt } from "drizzle-orm";
 import { sendOrderEmails, sendStatusUpdateEmail } from "../utils/mailer";
 
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
@@ -120,7 +120,9 @@ export const createOrder = async (req: Request, res: Response) => {
           totalAmount: calculatedTotal,
           taxAmount: calculatedTaxTotal,
           paymentGateway: paymentGateway || "COD",
-          status: "Pending", // Initial status: Pending (until Admin approves/confirms)
+          status: paymentGateway === "razorpay" ? "Confirmed" : "Pending",
+          paymentStatus: paymentGateway === "razorpay" ? "paid" : "pending",
+          transactionId: paymentGateway === "razorpay" ? paymentDetails?.razorpay_payment_id : null,
           customerName: customer.name,
           customerEmail: customer.email,
           customerPhone: customer.phone,
@@ -313,29 +315,46 @@ async function fetchAllOrderItems(targetOrderId?: number) {
   }
 }
 
-// 2. GET ALL ORDERS (Admin Only - Includes item details for Tax Invoice)
+// 2. GET ALL ORDERS — Cursor-based Pagination (Admin)
+// Usage: GET /api/orders?limit=20&cursor=<lastOrderId>
 export const getOrders = async (req: Request, res: Response) => {
   try {
-    const allOrders = await db
+    const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
+    const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
+
+    // Cursor pagination: id < cursor (newest first)
+    const conditions = cursor ? sql`id < ${cursor}` : undefined;
+
+    const paginatedOrders = await db
       .select()
       .from(ordersTable)
-      .orderBy(desc(ordersTable.id));
+      .where(conditions)
+      .orderBy(desc(ordersTable.id))
+      .limit(limit + 1); // +1 to check if there's a next page
 
-    if (allOrders.length === 0) {
-      return res.status(200).json([]);
+    const hasNextPage = paginatedOrders.length > limit;
+    const orders = hasNextPage ? paginatedOrders.slice(0, limit) : paginatedOrders;
+
+    if (orders.length === 0) {
+      return res.status(200).json({ data: [], nextCursor: null, hasNextPage: false });
     }
 
+    const orderIds = orders.map((o) => o.id);
     const allItems = await fetchAllOrderItems();
+    const filteredItems = allItems.filter((it) => orderIds.includes(it.orderId));
 
-    const ordersWithItems = allOrders.map((ord) => {
-      const items = allItems.filter((it) => it.orderId === ord.id);
-      return {
-        ...ord,
-        items,
-      };
+    const ordersWithItems = orders.map((ord) => ({
+      ...ord,
+      items: filteredItems.filter((it) => it.orderId === ord.id),
+    }));
+
+    const nextCursor = hasNextPage ? orders[orders.length - 1].id : null;
+
+    return res.status(200).json({
+      data: ordersWithItems,
+      nextCursor,
+      hasNextPage,
     });
-
-    return res.status(200).json(ordersWithItems);
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

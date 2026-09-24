@@ -1,19 +1,40 @@
 import { Request, Response } from "express";
 import db from "../db/config/db.connect";
 import { usersTable } from "../db/schema/userSchema";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, lt, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 
-// 1. Get All Users (Admin)
+// 1. Get All Users — Cursor-based Pagination (Admin)
+// Usage: GET /api/users?limit=20&cursor=<lastUserId>
 export const getUsers = async (req: Request, res: Response) => {
   try {
-    const users = await db.select().from(usersTable).orderBy(desc(usersTable.createdAt));
-    // Remove passwordHash from response
-    const sanitizedUsers = users.map(u => {
+    const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
+    const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
+
+    const whereClause = cursor ? lt(usersTable.id, cursor) : undefined;
+
+    const paginatedUsers = await db
+      .select()
+      .from(usersTable)
+      .where(whereClause)
+      .orderBy(desc(usersTable.id))
+      .limit(limit + 1);
+
+    const hasNextPage = paginatedUsers.length > limit;
+    const users = hasNextPage ? paginatedUsers.slice(0, limit) : paginatedUsers;
+
+    const sanitizedUsers = users.map((u) => {
       const { passwordHash, ...safeUser } = u;
       return safeUser;
     });
-    return res.status(200).json(sanitizedUsers);
+
+    const nextCursor = hasNextPage ? users[users.length - 1].id : null;
+
+    return res.status(200).json({
+      data: sanitizedUsers,
+      nextCursor,
+      hasNextPage,
+    });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }
