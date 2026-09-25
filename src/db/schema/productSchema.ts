@@ -1,4 +1,4 @@
-import { integer, pgTable, varchar, doublePrecision, text, timestamp } from "drizzle-orm/pg-core";
+import { integer, pgTable, varchar, doublePrecision, text, timestamp, boolean } from "drizzle-orm/pg-core";
 
 export const taxesTable = pgTable("taxes", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -20,7 +20,7 @@ export const productsTable = pgTable("products", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
   name: varchar({ length: 255 }).notNull(),
   catId: integer().references(() => categoriesTable.id).notNull(),
-  taxId: integer().references(() => taxesTable.id), // Nullable, can override category tax
+  taxId: integer().references(() => taxesTable.id),
   desc: text(),
   price: doublePrecision().notNull(),
   weight: varchar({ length: 50 }),
@@ -48,6 +48,8 @@ export const ordersTable = pgTable("orders", {
   customerEmail: varchar({ length: 255 }),
   customerPhone: varchar({ length: 50 }),
   shippingAddress: text(),
+  shippingCharge: doublePrecision().default(0).notNull(),
+  deliveryZone: varchar({ length: 100 }),
   createdAt: timestamp().defaultNow().notNull(),
 });
 
@@ -59,4 +61,17 @@ export const orderItemsTable = pgTable("order_items", {
   quantity: integer().notNull(),
   priceAtPurchase: doublePrecision().notNull(),
   taxAtPurchase: doublePrecision().notNull(),
+});
+
+// ── Delivery Zones Table ──
+// Admin yahan se pincode-based zones manage kar sakta hai
+export const deliveryZonesTable = pgTable("delivery_zones", {
+  id: integer().primaryKey().generatedAlwaysAsIdentity(),
+  name: varchar({ length: 100 }).notNull(),          // e.g., "Local (Manesar)", "Gurgaon City", "Delhi NCR"
+  pincodes: text().notNull(),                         // comma-separated: "122052,122051,122001"
+  charge: doublePrecision().notNull().default(0),     // shipping charge in ₹
+  minOrderFreeDelivery: doublePrecision().default(0), // min order amt for free delivery (0 = always paid)
+  estimatedDays: varchar({ length: 50 }).default("2-3 Days"), // "Same Day", "1-2 Days", etc.
+  isActive: boolean().default(true).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
 });

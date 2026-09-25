@@ -171,7 +171,7 @@ export const createProduct = async (req: Request, res: Response) => {
     if (!name || !catId || price === undefined) {
       return res
         .status(400)
-        .json({ error: "Name, catId aur price required hain." });
+        .json({ error: "Name, catId, and price are required." });
     }
 
     if (req.file) {
@@ -188,7 +188,7 @@ export const createProduct = async (req: Request, res: Response) => {
     if (!catExists) {
       return res
         .status(400)
-        .json({ error: "Select ki gayi category database me nahi mili." });
+        .json({ error: "Selected category was not found in database." });
     }
 
     // Check 2: Agar manual taxId bheja hai, to kya wo exist karta hai?
@@ -202,7 +202,7 @@ export const createProduct = async (req: Request, res: Response) => {
       if (!taxExists) {
         return res
           .status(400)
-          .json({ error: "Select kiya gaya tax slab database me nahi mila." });
+          .json({ error: "Selected tax slab was not found in database." });
       }
     }
 
@@ -280,7 +280,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!existingProduct) {
-      return res.status(404).json({ error: "Product nahi mila." });
+      return res.status(404).json({ error: "Product not found." });
     }
 
     let img = existingProduct.img;
@@ -294,7 +294,6 @@ export const updateProduct = async (req: Request, res: Response) => {
       img = null;
     }
 
-    // Check: Agar category update ki ja rahi hai, to kya wo exist karti hai?
     if (catId !== undefined) {
       const [catExists] = await db
         .select()
@@ -305,11 +304,10 @@ export const updateProduct = async (req: Request, res: Response) => {
       if (!catExists) {
         return res
           .status(400)
-          .json({ error: "Select ki gayi category database me nahi mili." });
+          .json({ error: "Selected category was not found in database." });
       }
     }
 
-    // Check: Agar taxId update ki ja rahi hai, to kya wo exist karti hai?
     if (taxId !== undefined && taxId !== null) {
       const [taxExists] = await db
         .select()
@@ -320,7 +318,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       if (!taxExists) {
         return res
           .status(400)
-          .json({ error: "Select kiya gaya tax slab database me nahi mila." });
+          .json({ error: "Selected tax slab was not found in database." });
       }
     }
 
@@ -343,7 +341,7 @@ export const updateProduct = async (req: Request, res: Response) => {
       .returning();
 
     if (!updatedProduct) {
-      return res.status(404).json({ error: "Product nahi mila." });
+      return res.status(404).json({ error: "Product not found." });
     }
 
     // Variants update / sync
@@ -452,7 +450,7 @@ export const deleteProduct = async (req: Request, res: Response) => {
       .limit(1);
 
     if (!existingProduct) {
-      return res.status(404).json({ error: "Product nahi mila." });
+      return res.status(404).json({ error: "Product not found." });
     }
 
     if (existingProduct.img) {
@@ -465,12 +463,12 @@ export const deleteProduct = async (req: Request, res: Response) => {
       .returning();
 
     if (!deletedProduct) {
-      return res.status(404).json({ error: "Product nahi mila." });
+      return res.status(404).json({ error: "Product not found." });
     }
 
     return res
       .status(200)
-      .json({ message: "Product delete ho gaya.", deletedProduct });
+      .json({ message: "Product deleted successfully.", deletedProduct });
   } catch (error: any) {
     return res.status(500).json({ error: error.message });
   }

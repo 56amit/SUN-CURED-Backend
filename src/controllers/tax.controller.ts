@@ -20,10 +20,9 @@ export const createTax = async (req: Request, res: Response) => {
     const { name, rate, desc, status } = req.body;
 
     if (!name || rate === undefined) {
-      return res.status(400).json({ error: "Name aur Rate required hain." });
+      return res.status(400).json({ error: "Name and Rate are required." });
     }
 
-    // Database me naya row insert kar rahe hain
     const [newTax] = await db
       .insert(taxesTable)
       .values({
@@ -32,7 +31,7 @@ export const createTax = async (req: Request, res: Response) => {
         desc: desc || null,
         status: status || "active",
       })
-      .returning(); // .returning() se insert hui row wapas milti hai
+      .returning();
 
     return res.status(201).json(newTax);
   } catch (error: any) {
@@ -50,7 +49,6 @@ export const updateTax = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid tax ID." });
     }
 
-    // Database me record update kar rahe hain where id match karti ho
     const [updatedTax] = await db
       .update(taxesTable)
       .set({
@@ -63,7 +61,7 @@ export const updateTax = async (req: Request, res: Response) => {
       .returning();
 
     if (!updatedTax) {
-      return res.status(404).json({ error: "Tax slab nahi mila." });
+      return res.status(404).json({ error: "Tax slab not found." });
     }
 
     return res.status(200).json(updatedTax);
@@ -89,7 +87,7 @@ export const deleteTax = async (req: Request, res: Response) => {
 
     if (categoriesUsingTax.length > 0) {
       return res.status(400).json({
-        error: `Yeh Tax Slab ${categoriesUsingTax.length} Category(s) se linked hai. Pehle un categories ka Tax Slab change ya remove karein.`
+        error: `This Tax Slab is linked to ${categoriesUsingTax.length} Category(s). Please reassign or remove their tax slab first.`
       });
     }
 
@@ -99,19 +97,18 @@ export const deleteTax = async (req: Request, res: Response) => {
       .set({ taxId: null })
       .where(eq(productsTable.taxId, id));
 
-    // Database se delete kar rahe hain where id matches
     const [deletedTax] = await db
       .delete(taxesTable)
       .where(eq(taxesTable.id, id))
       .returning();
 
     if (!deletedTax) {
-      return res.status(404).json({ error: "Tax slab nahi mila." });
+      return res.status(404).json({ error: "Tax slab not found." });
     }
 
     return res
       .status(200)
-      .json({ message: "Tax slab delete ho gaya.", deletedTax });
+      .json({ message: "Tax slab deleted successfully.", deletedTax });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Could not delete tax slab." });
   }

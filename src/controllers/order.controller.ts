@@ -46,7 +46,7 @@ export const createOrder = async (req: Request, res: Response) => {
       if (!product) {
         return res
           .status(404)
-          .json({ error: `Product ID ${item.productId} nahi mila.` });
+          .json({ error: `Product ID ${item.productId} not found.` });
       }
 
       let itemPrice = product.price;
@@ -420,7 +420,7 @@ export const updateOrderStatus = async (req: Request, res: Response) => {
       .returning();
 
     if (!updatedOrder) {
-      return res.status(404).json({ error: "Order record nahi mila." });
+      return res.status(404).json({ error: "Order record not found." });
     }
 
     // Trigger email notification to customer about the order status update

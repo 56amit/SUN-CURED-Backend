@@ -21,10 +21,10 @@ export const createCategory = async (req: Request, res: Response) => {
     if (!name || !taxId) {
       return res
         .status(400)
-        .json({ error: "Name aur mapped taxId required hain." });
+        .json({ error: "Name and mapped taxId are required." });
     }
 
-    // Validation check: taxId sach me taxesTable me exist karta hai ya nahi?
+    // Validation check: taxId exists in taxesTable
     const [taxExists] = await db
       .select()
       .from(taxesTable)
@@ -34,10 +34,10 @@ export const createCategory = async (req: Request, res: Response) => {
     if (!taxExists) {
       return res
         .status(400)
-        .json({ error: "Mapped tax ID database me exist nahi karta." });
+        .json({ error: "Mapped tax ID does not exist in the database." });
     }
 
-    // Category insert kar rahe hain database me
+    // Category insert
     const [newCategory] = await db
       .insert(categoriesTable)
       .values({
@@ -64,7 +64,6 @@ export const updateCategory = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid category ID." });
     }
 
-    // Agar taxId update ho rahi hai, to validation check karenge
     if (taxId !== undefined) {
       const [taxExists] = await db
         .select()
@@ -75,7 +74,7 @@ export const updateCategory = async (req: Request, res: Response) => {
       if (!taxExists) {
         return res
           .status(400)
-          .json({ error: "Mapped tax ID database me exist nahi karta." });
+          .json({ error: "Mapped tax ID does not exist in the database." });
       }
     }
 
@@ -91,7 +90,7 @@ export const updateCategory = async (req: Request, res: Response) => {
       .returning();
 
     if (!updatedCategory) {
-      return res.status(404).json({ error: "Category nahi mili." });
+      return res.status(404).json({ error: "Category not found." });
     }
 
     return res.status(200).json(updatedCategory);
@@ -117,7 +116,7 @@ export const deleteCategory = async (req: Request, res: Response) => {
 
     if (productsUsingCat.length > 0) {
       return res.status(400).json({
-        error: `Yeh Category ${productsUsingCat.length} Product(s) se linked hai. Pehle un products ki Category change karein.`
+        error: `This Category is linked to ${productsUsingCat.length} Product(s). Please reassign their category first.`
       });
     }
 
@@ -127,12 +126,12 @@ export const deleteCategory = async (req: Request, res: Response) => {
       .returning();
 
     if (!deletedCategory) {
-      return res.status(404).json({ error: "Category nahi mili." });
+      return res.status(404).json({ error: "Category not found." });
     }
 
     return res
       .status(200)
-      .json({ message: "Category delete ho gayi.", deletedCategory });
+      .json({ message: "Category deleted successfully.", deletedCategory });
   } catch (error: any) {
     return res.status(500).json({ error: error.message || "Could not delete category." });
   }

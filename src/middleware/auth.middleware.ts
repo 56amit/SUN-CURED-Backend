@@ -16,7 +16,7 @@ export const verifyAdmin = (
   const authHeader = (req.headers as Record<string, string>).authorization;
 
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return res.status(401).json({ error: "Access denied. Token missing hai." });
+    return res.status(401).json({ error: "Access denied. Token is missing." });
   }
 
   const token = authHeader.split(" ")[1].trim().replace(/\s+/g, "");
