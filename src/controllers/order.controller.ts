@@ -11,6 +11,19 @@ import { usersTable } from "../db/schema/userSchema";
 import { eq, desc, sql, lt } from "drizzle-orm";
 import { sendOrderEmails, sendStatusUpdateEmail } from "../utils/mailer";
 
+// Auto-add missing columns if they don't exist (safe migration)
+let orderColumnsMigrated = false;
+async function ensureOrderColumns() {
+  if (orderColumnsMigrated) return;
+  try {
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "shippingCharge" DOUBLE PRECISION DEFAULT 0`);
+  } catch (_) {}
+  try {
+    await db.execute(sql`ALTER TABLE orders ADD COLUMN IF NOT EXISTS "deliveryZone" VARCHAR(100)`);
+  } catch (_) {}
+  orderColumnsMigrated = true;
+}
+
 // 1. PLACE A NEW ORDER (Future Payment Gateway Ready)
 export const createOrder = async (req: Request, res: Response) => {
   try {
@@ -324,20 +337,45 @@ export const getOrders = async (req: Request, res: Response) => {
     const limit = Math.min(parseInt(String(req.query.limit || "20")), 100);
     const cursor = req.query.cursor ? parseInt(String(req.query.cursor)) : null;
 
-    const conditions = isPaginated && cursor ? sql`id < ${cursor}` : undefined;
+    // Ensure optional columns exist in DB (safe auto-migration)
+    await ensureOrderColumns();
+    // that may not exist in older DB migrations on production
+    let rawOrders: any[] = [];
+    try {
+      const cursorClause = isPaginated && cursor ? sql`AND id < ${cursor}` : sql``;
+      const limitClause = isPaginated ? limit + 1 : 1000;
+      const result: any = await db.execute(sql`
+        SELECT
+          id, "totalAmount", "taxAmount", status, "paymentStatus",
+          "paymentGateway", "transactionId", "customerName", "customerEmail",
+          "customerPhone", "shippingAddress", "createdAt",
+          COALESCE("shippingCharge", 0) as "shippingCharge",
+          "deliveryZone"
+        FROM orders
+        WHERE 1=1 ${cursorClause}
+        ORDER BY id DESC
+        LIMIT ${limitClause}
+      `);
+      rawOrders = result.rows || result || [];
+    } catch (sqlErr: any) {
+      // Fallback: some columns may not exist, try without optional columns
+      const cursorClause = isPaginated && cursor ? sql`AND id < ${cursor}` : sql``;
+      const limitClause = isPaginated ? limit + 1 : 1000;
+      const result: any = await db.execute(sql`
+        SELECT
+          id, "totalAmount", "taxAmount", status, "paymentStatus",
+          "paymentGateway", "transactionId", "customerName", "customerEmail",
+          "customerPhone", "shippingAddress", "createdAt"
+        FROM orders
+        WHERE 1=1 ${cursorClause}
+        ORDER BY id DESC
+        LIMIT ${limitClause}
+      `);
+      rawOrders = result.rows || result || [];
+    }
 
-    const queryBuilder = db
-      .select()
-      .from(ordersTable)
-      .where(conditions)
-      .orderBy(desc(ordersTable.id));
-
-    const paginatedOrders = isPaginated
-      ? await queryBuilder.limit(limit + 1)
-      : await queryBuilder;
-
-    const hasNextPage = isPaginated && paginatedOrders.length > limit;
-    const orders = hasNextPage ? paginatedOrders.slice(0, limit) : paginatedOrders;
+    const hasNextPage = isPaginated && rawOrders.length > limit;
+    const orders = hasNextPage ? rawOrders.slice(0, limit) : rawOrders;
 
     if (orders.length === 0) {
       return isPaginated
@@ -345,12 +383,25 @@ export const getOrders = async (req: Request, res: Response) => {
         : res.status(200).json([]);
     }
 
-    const orderIds = orders.map((o) => o.id);
+    const orderIds = orders.map((o: any) => o.id);
     const allItems = await fetchAllOrderItems();
     const filteredItems = allItems.filter((it) => orderIds.includes(it.orderId));
 
-    const ordersWithItems = orders.map((ord) => ({
-      ...ord,
+    const ordersWithItems = orders.map((ord: any) => ({
+      id: ord.id,
+      totalAmount: parseFloat(ord.totalAmount || ord.total_amount || 0),
+      taxAmount: parseFloat(ord.taxAmount || ord.tax_amount || 0),
+      status: ord.status,
+      paymentStatus: ord.paymentStatus || ord.payment_status || "pending",
+      paymentGateway: ord.paymentGateway || ord.payment_gateway,
+      transactionId: ord.transactionId || ord.transaction_id,
+      customerName: ord.customerName || ord.customer_name,
+      customerEmail: ord.customerEmail || ord.customer_email,
+      customerPhone: ord.customerPhone || ord.customer_phone,
+      shippingAddress: ord.shippingAddress || ord.shipping_address,
+      shippingCharge: parseFloat(ord.shippingCharge || ord.shipping_charge || 0),
+      deliveryZone: ord.deliveryZone || ord.delivery_zone || null,
+      createdAt: ord.createdAt || ord.created_at,
       items: filteredItems.filter((it) => it.orderId === ord.id),
     }));
 
@@ -359,9 +410,9 @@ export const getOrders = async (req: Request, res: Response) => {
       return res.status(200).json({ data: ordersWithItems, nextCursor, hasNextPage });
     }
 
-    // Plain array (default)
     return res.status(200).json(ordersWithItems);
   } catch (error: any) {
+    console.error("getOrders error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
