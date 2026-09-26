@@ -1,41 +1,63 @@
 import { Request, Response } from "express";
+import { Pool } from "pg";
 import db from "../db/config/db.connect";
-import { deliveryZonesTable } from "../db/schema/productSchema";
-import { eq, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 
-// Helper: DB mein table exist nahi to create kar do
+// Get the underlying pg client for dynamic queries
+let pgPool: Pool | null = null;
+async function getPgPool(): Promise<Pool> {
+  if (pgPool) return pgPool;
+  pgPool = new Pool({ connectionString: process.env.DATABASE_URL });
+  return pgPool;
+}
+
+// Ensure the delivery_zones table exists before every operation
 async function ensureDeliveryZonesTable() {
-  try {
-    await db.execute(sql`
-      CREATE TABLE IF NOT EXISTS delivery_zones (
-        id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-        name VARCHAR(100) NOT NULL,
-        pincodes TEXT NOT NULL DEFAULT '',
-        charge DOUBLE PRECISION NOT NULL DEFAULT 0,
-        min_order_free_delivery DOUBLE PRECISION DEFAULT 0,
-        estimated_days VARCHAR(50) DEFAULT '2-3 Days',
-        is_active BOOLEAN DEFAULT TRUE NOT NULL,
-        created_at TIMESTAMP DEFAULT NOW() NOT NULL
-      );
-    `);
-  } catch (err) {
-    // Table already exists — ignore
-  }
+  await db.execute(sql`
+    CREATE TABLE IF NOT EXISTS delivery_zones (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(100) NOT NULL,
+      pincodes TEXT NOT NULL DEFAULT '',
+      charge DOUBLE PRECISION NOT NULL DEFAULT 0,
+      min_order_free_delivery DOUBLE PRECISION DEFAULT 0,
+      estimated_days VARCHAR(50) DEFAULT '2-3 Days',
+      is_active BOOLEAN DEFAULT TRUE NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW() NOT NULL
+    );
+  `);
+}
+
+// Map snake_case DB row to camelCase response
+function mapZone(row: any) {
+  return {
+    id: row.id,
+    name: row.name,
+    pincodes: row.pincodes,
+    charge: parseFloat(row.charge) || 0,
+    minOrderFreeDelivery: parseFloat(row.min_order_free_delivery) || 0,
+    estimatedDays: row.estimated_days,
+    isActive: row.is_active,
+    createdAt: row.created_at,
+  };
 }
 
 // ── 1. GET ALL DELIVERY ZONES (Public + Admin) ──
 export const getDeliveryZones = async (req: Request, res: Response) => {
   try {
     await ensureDeliveryZonesTable();
-    const zones = await db.select().from(deliveryZonesTable).orderBy(deliveryZonesTable.charge);
+    const result = await db.execute(sql`
+      SELECT * FROM delivery_zones ORDER BY charge ASC
+    `);
+    const zones = (result.rows || result as any[]).map(mapZone);
     return res.status(200).json(zones);
   } catch (error: any) {
+    console.error("getDeliveryZones error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
 
 // ── 2. CHECK PINCODE → Returns zone + shipping charge ──
-// Frontend checkout pe use hoga: GET /api/delivery-zones/check?pincode=122052&subtotal=350
+// Frontend checkout use: GET /api/delivery-zones/check?pincode=122052&subtotal=350
 export const checkPincode = async (req: Request, res: Response) => {
   try {
     await ensureDeliveryZonesTable();
@@ -47,16 +69,15 @@ export const checkPincode = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Valid pincode required" });
     }
 
-    const allZones = await db
-      .select()
-      .from(deliveryZonesTable)
-      .where(eq(deliveryZonesTable.isActive, true));
+    const result = await db.execute(sql`
+      SELECT * FROM delivery_zones WHERE is_active = TRUE
+    `);
+    const allZones = (result.rows || result as any[]).map(mapZone);
 
-    // Pincode match karo
     const matchedZone = allZones.find((zone) => {
       const zonePincodes = zone.pincodes
         .split(",")
-        .map((p) => p.trim())
+        .map((p: string) => p.trim())
         .filter(Boolean);
       return zonePincodes.includes(pincode);
     });
@@ -69,7 +90,6 @@ export const checkPincode = async (req: Request, res: Response) => {
       });
     }
 
-    // Free delivery check
     const minFree = matchedZone.minOrderFreeDelivery || 0;
     const shippingCharge =
       minFree > 0 && subtotal >= minFree ? 0 : matchedZone.charge;
@@ -87,6 +107,7 @@ export const checkPincode = async (req: Request, res: Response) => {
       pincode,
     });
   } catch (error: any) {
+    console.error("checkPincode error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -102,27 +123,30 @@ export const createDeliveryZone = async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Name, pincodes, and charge are required." });
     }
 
-    // Normalize pincodes: trim spaces
     const normalizedPincodes = String(pincodes)
       .split(",")
       .map((p) => p.trim())
       .filter(Boolean)
       .join(",");
 
-    const [newZone] = await db
-      .insert(deliveryZonesTable)
-      .values({
-        name,
-        pincodes: normalizedPincodes,
-        charge: parseFloat(String(charge)),
-        minOrderFreeDelivery: parseFloat(String(minOrderFreeDelivery || 0)),
-        estimatedDays: estimatedDays || "2-3 Days",
-        isActive: isActive !== undefined ? Boolean(isActive) : true,
-      })
-      .returning();
+    const result = await db.execute(sql`
+      INSERT INTO delivery_zones (name, pincodes, charge, min_order_free_delivery, estimated_days, is_active)
+      VALUES (
+        ${name},
+        ${normalizedPincodes},
+        ${parseFloat(String(charge))},
+        ${parseFloat(String(minOrderFreeDelivery || 0))},
+        ${estimatedDays || "2-3 Days"},
+        ${isActive !== undefined ? Boolean(isActive) : true}
+      )
+      RETURNING *
+    `);
 
+    const rows = result.rows || result as any[];
+    const newZone = rows[0] ? mapZone(rows[0]) : null;
     return res.status(201).json(newZone);
   } catch (error: any) {
+    console.error("createDeliveryZone error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -135,26 +159,37 @@ export const updateDeliveryZone = async (req: Request, res: Response) => {
 
     const { name, pincodes, charge, minOrderFreeDelivery, estimatedDays, isActive } = req.body;
 
-    const updateData: Record<string, any> = {};
-    if (name !== undefined) updateData.name = name;
+    // Build dynamic SET clause using raw pg client
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (name !== undefined) { updates.push(`name = $${updates.length + 1}`); values.push(name); }
     if (pincodes !== undefined) {
-      updateData.pincodes = String(pincodes).split(",").map((p) => p.trim()).filter(Boolean).join(",");
+      const norm = String(pincodes).split(",").map((p) => p.trim()).filter(Boolean).join(",");
+      updates.push(`pincodes = $${updates.length + 1}`); values.push(norm);
     }
-    if (charge !== undefined) updateData.charge = parseFloat(String(charge));
-    if (minOrderFreeDelivery !== undefined) updateData.minOrderFreeDelivery = parseFloat(String(minOrderFreeDelivery));
-    if (estimatedDays !== undefined) updateData.estimatedDays = estimatedDays;
-    if (isActive !== undefined) updateData.isActive = Boolean(isActive);
+    if (charge !== undefined) { updates.push(`charge = $${updates.length + 1}`); values.push(parseFloat(String(charge))); }
+    if (minOrderFreeDelivery !== undefined) { updates.push(`min_order_free_delivery = $${updates.length + 1}`); values.push(parseFloat(String(minOrderFreeDelivery))); }
+    if (estimatedDays !== undefined) { updates.push(`estimated_days = $${updates.length + 1}`); values.push(estimatedDays); }
+    if (isActive !== undefined) { updates.push(`is_active = $${updates.length + 1}`); values.push(Boolean(isActive)); }
 
-    const [updated] = await db
-      .update(deliveryZonesTable)
-      .set(updateData)
-      .where(eq(deliveryZonesTable.id, id))
-      .returning();
+    if (updates.length === 0) {
+      return res.status(400).json({ error: "No fields to update." });
+    }
 
-    if (!updated) return res.status(404).json({ error: "Delivery zone not found." });
+    values.push(id);
+    const setClause = updates.join(", ");
+    const rawQuery = `UPDATE delivery_zones SET ${setClause} WHERE id = $${values.length} RETURNING *`;
 
-    return res.status(200).json(updated);
+    const pool = await getPgPool();
+    const pgResult = await pool.query(rawQuery, values);
+    const rows = pgResult.rows || [];
+
+    if (!rows[0]) return res.status(404).json({ error: "Delivery zone not found." });
+
+    return res.status(200).json(mapZone(rows[0]));
   } catch (error: any) {
+    console.error("updateDeliveryZone error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
@@ -165,15 +200,16 @@ export const deleteDeliveryZone = async (req: Request, res: Response) => {
     const id = parseInt(String(req.params.id));
     if (isNaN(id)) return res.status(400).json({ error: "Invalid zone ID" });
 
-    const [deleted] = await db
-      .delete(deliveryZonesTable)
-      .where(eq(deliveryZonesTable.id, id))
-      .returning();
+    const result = await db.execute(sql`
+      DELETE FROM delivery_zones WHERE id = ${id} RETURNING id, name
+    `);
+    const rows = result.rows || result as any[];
 
-    if (!deleted) return res.status(404).json({ error: "Delivery zone not found." });
+    if (!rows[0]) return res.status(404).json({ error: "Delivery zone not found." });
 
-    return res.status(200).json({ message: "Delivery zone deleted successfully.", id: deleted.id });
+    return res.status(200).json({ message: "Delivery zone deleted successfully.", id: rows[0].id });
   } catch (error: any) {
+    console.error("deleteDeliveryZone error:", error);
     return res.status(500).json({ error: error.message });
   }
 };
