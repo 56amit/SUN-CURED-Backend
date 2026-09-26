@@ -124,7 +124,7 @@ export const createOrder = async (req: Request, res: Response) => {
       }
     }
 
-    // Finally, new order database me save karte hain (Initial status = "Pending")
+    // Save new order to database (Initial status = "Confirmed")
     let newOrder: any = null;
     try {
       const [ord] = await db
@@ -133,7 +133,7 @@ export const createOrder = async (req: Request, res: Response) => {
           totalAmount: calculatedTotal,
           taxAmount: calculatedTaxTotal,
           paymentGateway: paymentGateway || "COD",
-          status: paymentGateway === "razorpay" ? "Confirmed" : "Pending",
+          status: "Confirmed",
           paymentStatus: paymentGateway === "razorpay" ? "paid" : "pending",
           transactionId: paymentGateway === "razorpay" ? paymentDetails?.razorpay_payment_id : null,
           customerName: customer.name,
@@ -148,14 +148,14 @@ export const createOrder = async (req: Request, res: Response) => {
       try {
         const res: any = await db.execute(sql`
           INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address)
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Pending', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
           RETURNING id, total_amount, tax_amount, status
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
       } catch (sqlErr1) {
         const res: any = await db.execute(sql`
           INSERT INTO orders ("totalAmount", "taxAmount", "paymentGateway", status, "customerName", "customerEmail", "customerPhone", "shippingAddress")
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Pending', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
           RETURNING id
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
