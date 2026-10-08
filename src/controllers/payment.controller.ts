@@ -95,7 +95,7 @@ export const initiatePayment = async (req: Request, res: Response) => {
       if (foundZoneShipping !== null) {
         shippingCharge = foundZoneShipping;
       } else {
-        shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+        shippingCharge = 0; // Default: free delivery
       }
     }
     calculatedTotal += shippingCharge;
