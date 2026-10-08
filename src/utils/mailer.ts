@@ -30,7 +30,8 @@ export const sendOrderEmails = async (
   totalAmount: number,
   customerData: { name: string; email: string; phone: string; address: string },
   items: { productName: string; quantity: number; price: number }[],
-  totalTaxAmount: number = 0
+  totalTaxAmount: number = 0,
+  passedShippingCharge?: number
 ) => {
   if (!emailUser || !emailPass) {
     console.log(
@@ -42,7 +43,9 @@ export const sendOrderEmails = async (
   const adminEmail = (process.env.ADMIN_EMAIL || process.env.EMAIL_USER || "suncuredsavories@gmail.com").trim();
 
   const itemsSubtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
-  const shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+  const shippingCharge = typeof passedShippingCharge === "number"
+    ? passedShippingCharge
+    : Math.max(0, totalAmount - itemsSubtotal);
 
   // 1. Send Email to Admin
   const adminMailOptions = {

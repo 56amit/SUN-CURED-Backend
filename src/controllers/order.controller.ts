@@ -100,10 +100,41 @@ export const createOrder = async (req: Request, res: Response) => {
       });
     }
 
-    // Calculate shipping (Rs 50 or Free if > 500)
+    // Calculate shipping charge dynamically based on pincode / delivery zones
     const itemsSubtotal = resolvedItems.reduce((sum, item) => sum + item.quantity * item.priceAtPurchase, 0);
-    const shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+    let shippingCharge = 0;
+
+    if (typeof req.body.shippingCharge === "number" && !isNaN(req.body.shippingCharge)) {
+      shippingCharge = req.body.shippingCharge;
+    } else {
+      const targetPincode = req.body.pincode || customer.pincode || (customer.address ? customer.address.match(/\b\d{6}\b/)?.[0] : null);
+      let foundZoneShipping: number | null = null;
+      if (targetPincode) {
+        try {
+          const zResult: any = await db.execute(sql`SELECT * FROM delivery_zones WHERE is_active = TRUE`);
+          const zones = (zResult.rows || zResult as any[]);
+          const matched = zones.find((z: any) => {
+            const pArr = (z.pincodes || z.pincode || "").split(",").map((p: string) => p.trim());
+            return pArr.includes(String(targetPincode).trim());
+          });
+          if (matched) {
+            const minFree = parseFloat(matched.min_order_free_delivery ?? matched.minOrderFreeDelivery ?? 0);
+            const charge = parseFloat(matched.charge ?? 0);
+            foundZoneShipping = (minFree > 0 && itemsSubtotal >= minFree) ? 0 : charge;
+          }
+        } catch (zErr) {
+          console.warn("Delivery zone lookup in createOrder failed:", zErr);
+        }
+      }
+      if (foundZoneShipping !== null) {
+        shippingCharge = foundZoneShipping;
+      } else {
+        shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+      }
+    }
+
     calculatedTotal += shippingCharge;
+
     // Razorpay signature verification
     if (paymentGateway === "razorpay") {
       if (!paymentDetails || !paymentDetails.razorpay_order_id || !paymentDetails.razorpay_payment_id || !paymentDetails.razorpay_signature) {
@@ -140,6 +171,7 @@ export const createOrder = async (req: Request, res: Response) => {
           customerEmail: customer.email,
           customerPhone: customer.phone,
           shippingAddress: customer.address,
+          shippingCharge: shippingCharge,
         })
         .returning();
       newOrder = ord;
@@ -147,15 +179,15 @@ export const createOrder = async (req: Request, res: Response) => {
       console.warn("Drizzle orders insert failed, attempting SQL fallbacks:", ordErr);
       try {
         const res: any = await db.execute(sql`
-          INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address)
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          INSERT INTO orders (total_amount, tax_amount, payment_gateway, status, customer_name, customer_email, customer_phone, shipping_address, shipping_charge)
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address}, ${shippingCharge})
           RETURNING id, total_amount, tax_amount, status
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
       } catch (sqlErr1) {
         const res: any = await db.execute(sql`
-          INSERT INTO orders ("totalAmount", "taxAmount", "paymentGateway", status, "customerName", "customerEmail", "customerPhone", "shippingAddress")
-          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address})
+          INSERT INTO orders ("totalAmount", "taxAmount", "paymentGateway", status, "customerName", "customerEmail", "customerPhone", "shippingAddress", "shippingCharge")
+          VALUES (${calculatedTotal}, ${calculatedTaxTotal}, ${paymentGateway || 'COD'}, 'Confirmed', ${customer.name}, ${customer.email}, ${customer.phone}, ${customer.address}, ${shippingCharge})
           RETURNING id
         `);
         newOrder = res.rows ? res.rows[0] : res[0];
@@ -205,7 +237,8 @@ export const createOrder = async (req: Request, res: Response) => {
           quantity: item.quantity,
           price: item.priceAtPurchase,
         })),
-        calculatedTaxTotal
+        calculatedTaxTotal,
+        shippingCharge
       );
     } catch (emailErr) {
       console.error("Email send failed (non-fatal):", emailErr);

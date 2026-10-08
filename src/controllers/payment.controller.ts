@@ -3,7 +3,7 @@ import Razorpay from "razorpay";
 import crypto from "crypto";
 import db from "../db/config/db.connect";
 import { ordersTable, productsTable, taxesTable } from "../db/schema/productSchema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -66,8 +66,38 @@ export const initiatePayment = async (req: Request, res: Response) => {
       calculatedTotal += itemTotalInclTax;
     }
 
-    // Dynamic shipping logic (Free if > 500, else 50)
-    const shippingCharge = calculatedTotal > 500 ? 0 : 50;
+    // Dynamic shipping logic (check passed shippingCharge or pincode zone)
+    const itemsSubtotal = calculatedTotal;
+    let shippingCharge = 0;
+
+    if (typeof req.body.shippingCharge === "number" && !isNaN(req.body.shippingCharge)) {
+      shippingCharge = req.body.shippingCharge;
+    } else {
+      const targetPincode = req.body.pincode;
+      let foundZoneShipping: number | null = null;
+      if (targetPincode) {
+        try {
+          const zResult: any = await db.execute(sql`SELECT * FROM delivery_zones WHERE is_active = TRUE`);
+          const zones = (zResult.rows || zResult as any[]);
+          const matched = zones.find((z: any) => {
+            const pArr = (z.pincodes || z.pincode || "").split(",").map((p: string) => p.trim());
+            return pArr.includes(String(targetPincode).trim());
+          });
+          if (matched) {
+            const minFree = parseFloat(matched.min_order_free_delivery ?? matched.minOrderFreeDelivery ?? 0);
+            const charge = parseFloat(matched.charge ?? 0);
+            foundZoneShipping = (minFree > 0 && itemsSubtotal >= minFree) ? 0 : charge;
+          }
+        } catch (zErr) {
+          console.warn("Zone calculation error in payment controller:", zErr);
+        }
+      }
+      if (foundZoneShipping !== null) {
+        shippingCharge = foundZoneShipping;
+      } else {
+        shippingCharge = itemsSubtotal > 500 ? 0 : 50;
+      }
+    }
     calculatedTotal += shippingCharge;
 
     const options = {
