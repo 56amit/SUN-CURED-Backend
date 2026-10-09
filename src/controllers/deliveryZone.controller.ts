@@ -83,9 +83,18 @@ export const checkPincode = async (req: Request, res: Response) => {
     });
 
     if (!matchedZone) {
+      // Pincode is outside local admin delivery zones -> Pan India delivery with standard shipping charge
+      const panIndiaShippingCharge = 50;
       return res.status(200).json({
-        serviceable: false,
-        message: "Sorry! We don't deliver to this pincode yet.",
+        serviceable: true,
+        zone: {
+          id: 0,
+          name: "Pan India Delivery",
+          estimatedDays: "4-7 Days",
+        },
+        shippingCharge: panIndiaShippingCharge,
+        isFreeDelivery: false,
+        freeDeliveryAbove: null,
         pincode,
       });
     }

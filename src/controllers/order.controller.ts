@@ -129,7 +129,7 @@ export const createOrder = async (req: Request, res: Response) => {
       if (foundZoneShipping !== null) {
         shippingCharge = foundZoneShipping;
       } else {
-        shippingCharge = 0; // Default: free delivery
+        shippingCharge = 50; // Non-zone / Pan India shipping charge
       }
     }
 
