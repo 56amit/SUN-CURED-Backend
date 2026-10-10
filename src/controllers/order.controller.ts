@@ -10,6 +10,7 @@ import {
 import { usersTable } from "../db/schema/userSchema";
 import { eq, desc, sql, lt } from "drizzle-orm";
 import { sendOrderEmails, sendStatusUpdateEmail } from "../utils/mailer";
+import { formatEstimatedDays } from "./deliveryZone.controller";
 
 // Auto-add missing columns if they don't exist (safe migration)
 let orderColumnsMigrated = false;
@@ -103,12 +104,14 @@ export const createOrder = async (req: Request, res: Response) => {
     // Calculate shipping charge dynamically based on pincode / delivery zones
     const itemsSubtotal = resolvedItems.reduce((sum, item) => sum + item.quantity * item.priceAtPurchase, 0);
     let shippingCharge = 0;
+    let orderEstimatedDays: string = formatEstimatedDays(req.body.estimatedDays || req.body.estimatedDelivery || null);
 
     if (typeof req.body.shippingCharge === "number" && !isNaN(req.body.shippingCharge)) {
       shippingCharge = req.body.shippingCharge;
     } else {
       const targetPincode = req.body.pincode || customer.pincode || (customer.address ? customer.address.match(/\b\d{6}\b/)?.[0] : null);
       let foundZoneShipping: number | null = null;
+      let foundZoneEstimatedDays: string | null = null;
       if (targetPincode) {
         try {
           const zResult: any = await db.execute(sql`SELECT * FROM delivery_zones WHERE is_active = TRUE`);
@@ -121,6 +124,7 @@ export const createOrder = async (req: Request, res: Response) => {
             const minFree = parseFloat(matched.min_order_free_delivery ?? matched.minOrderFreeDelivery ?? 0);
             const charge = parseFloat(matched.charge ?? 0);
             foundZoneShipping = (minFree > 0 && itemsSubtotal >= minFree) ? 0 : charge;
+            foundZoneEstimatedDays = formatEstimatedDays(matched.estimated_days ?? matched.estimatedDays);
           }
         } catch (zErr) {
           console.warn("Delivery zone lookup in createOrder failed:", zErr);
@@ -128,8 +132,14 @@ export const createOrder = async (req: Request, res: Response) => {
       }
       if (foundZoneShipping !== null) {
         shippingCharge = foundZoneShipping;
+        if (!orderEstimatedDays || orderEstimatedDays === "2-3 Days") {
+          orderEstimatedDays = foundZoneEstimatedDays || "2-3 Days";
+        }
       } else {
         shippingCharge = 50; // Non-zone / Pan India shipping charge
+        if (!orderEstimatedDays || orderEstimatedDays === "2-3 Days") {
+          orderEstimatedDays = "4-7 Days";
+        }
       }
     }
 
@@ -238,7 +248,8 @@ export const createOrder = async (req: Request, res: Response) => {
           price: item.priceAtPurchase,
         })),
         calculatedTaxTotal,
-        shippingCharge
+        shippingCharge,
+        orderEstimatedDays
       );
     } catch (emailErr) {
       console.error("Email send failed (non-fatal):", emailErr);

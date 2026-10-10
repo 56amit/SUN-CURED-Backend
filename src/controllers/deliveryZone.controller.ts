@@ -11,6 +11,14 @@ async function getPgPool(): Promise<Pool> {
   return pgPool;
 }
 
+export function formatEstimatedDays(val: any): string {
+  if (!val) return "2-3 Days";
+  const s = String(val).trim();
+  if (!s) return "2-3 Days";
+  if (/^\d+$/.test(s)) return `${s} Hr`;
+  return s;
+}
+
 // Ensure the delivery_zones table exists before every operation
 async function ensureDeliveryZonesTable() {
   await db.execute(sql`
@@ -25,6 +33,15 @@ async function ensureDeliveryZonesTable() {
       created_at TIMESTAMP DEFAULT NOW() NOT NULL
     );
   `);
+  try {
+    await db.execute(sql`
+      UPDATE delivery_zones
+      SET estimated_days = CONCAT(TRIM(estimated_days), ' Hr')
+      WHERE estimated_days ~ '^[0-9]+$'
+    `);
+  } catch {
+    // Ignore migration error if already updated or regex unsupported
+  }
 }
 
 // Map snake_case DB row to camelCase response
@@ -35,7 +52,7 @@ function mapZone(row: any) {
     pincodes: row.pincodes,
     charge: parseFloat(row.charge) || 0,
     minOrderFreeDelivery: parseFloat(row.min_order_free_delivery) || 0,
-    estimatedDays: row.estimated_days,
+    estimatedDays: formatEstimatedDays(row.estimated_days),
     isActive: row.is_active,
     createdAt: row.created_at,
   };
@@ -145,7 +162,7 @@ export const createDeliveryZone = async (req: Request, res: Response) => {
         ${normalizedPincodes},
         ${parseFloat(String(charge))},
         ${parseFloat(String(minOrderFreeDelivery || 0))},
-        ${estimatedDays || "2-3 Days"},
+        ${formatEstimatedDays(estimatedDays)},
         ${isActive !== undefined ? Boolean(isActive) : true}
       )
       RETURNING *
@@ -179,7 +196,7 @@ export const updateDeliveryZone = async (req: Request, res: Response) => {
     }
     if (charge !== undefined) { updates.push(`charge = $${updates.length + 1}`); values.push(parseFloat(String(charge))); }
     if (minOrderFreeDelivery !== undefined) { updates.push(`min_order_free_delivery = $${updates.length + 1}`); values.push(parseFloat(String(minOrderFreeDelivery))); }
-    if (estimatedDays !== undefined) { updates.push(`estimated_days = $${updates.length + 1}`); values.push(estimatedDays); }
+    if (estimatedDays !== undefined) { updates.push(`estimated_days = $${updates.length + 1}`); values.push(formatEstimatedDays(estimatedDays)); }
     if (isActive !== undefined) { updates.push(`is_active = $${updates.length + 1}`); values.push(Boolean(isActive)); }
 
     if (updates.length === 0) {

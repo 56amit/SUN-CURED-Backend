@@ -31,7 +31,8 @@ export const sendOrderEmails = async (
   customerData: { name: string; email: string; phone: string; address: string },
   items: { productName: string; quantity: number; price: number }[],
   totalTaxAmount: number = 0,
-  passedShippingCharge?: number
+  passedShippingCharge?: number,
+  passedEstimatedDays?: string
 ) => {
   if (!emailUser || !emailPass) {
     console.log(
@@ -46,6 +47,10 @@ export const sendOrderEmails = async (
   const shippingCharge = typeof passedShippingCharge === "number"
     ? passedShippingCharge
     : Math.max(0, totalAmount - itemsSubtotal);
+
+  const estimatedDays = passedEstimatedDays
+    ? (/^\d+$/.test(passedEstimatedDays.trim()) ? `${passedEstimatedDays.trim()} Hr` : passedEstimatedDays.trim())
+    : null;
 
   // 1. Send Email to Admin
   const adminMailOptions = {
@@ -64,6 +69,7 @@ export const sendOrderEmails = async (
             <li style="padding: 4px 0;"><strong>Order ID:</strong> #${orderId}</li>
             <li style="padding: 4px 0;"><strong>Grand Total:</strong> ₹${totalAmount.toFixed(2)}</li>
             <li style="padding: 4px 0;"><strong>Total Items:</strong> ${items.length}</li>
+            ${estimatedDays ? `<li style="padding: 4px 0;"><strong>Est. Delivery:</strong> ${estimatedDays}</li>` : ''}
           </ul>
         </div>
 
@@ -197,6 +203,7 @@ export const sendOrderEmails = async (
       <div style="margin:24px 0; padding:16px 20px; background:#f9f6f0; border-radius:10px; font-size:0.9em; color:#555;">
         <p style="margin:0 0 6px;"><strong>📦 Order ID:</strong> #${orderId}</p>
         <p style="margin:0 0 6px;"><strong>🚚 Shipping Address:</strong> ${customerData.address}</p>
+        ${estimatedDays ? `<p style="margin:0 0 6px;"><strong>⏱️ Estimated Delivery:</strong> ${estimatedDays}</p>` : ''}
         <p style="margin:0;">We will notify you once your order is shipped!</p>
       </div>
 
