@@ -2,14 +2,19 @@ import nodemailer from "nodemailer";
 import dotenv from "dotenv";
 dotenv.config();
 
-const emailUser = process.env.EMAIL_USER?.trim();
-const emailPass = process.env.EMAIL_PASS?.trim().replace(/\s+/g, "");
+const cleanEmailPass = (pass?: string) => {
+  if (!pass) return "";
+  let clean = pass.split("#")[0].trim();
+  clean = clean.replace(/^["']|["']$/g, "").trim();
+  return clean.replace(/\s+/g, "");
+};
 
-// SMTP Transporter configuration
+const emailUser = process.env.EMAIL_USER?.trim();
+const emailPass = cleanEmailPass(process.env.EMAIL_PASS);
+
+// SMTP Transporter configuration (service: 'gmail' works best across platforms and serverless)
 const transporter = nodemailer.createTransport({
-  host: "smtp.gmail.com",
-  port: 587,
-  secure: false, // must be false for port 587
+  service: "gmail",
   auth: {
     user: emailUser,
     pass: emailPass, // Gmail App Password
@@ -36,12 +41,16 @@ export const sendOrderEmails = async (
 ) => {
   if (!emailUser || !emailPass) {
     console.log(
-      "Email credentials not set or invalid in .env, skipping emails.",
+      "Email credentials not set or invalid in .env / Vercel env, skipping emails.",
     );
     return;
   }
 
-  const adminEmail = (process.env.ADMIN_EMAIL || process.env.EMAIL_USER || "suncuredsavories@gmail.com").trim();
+  // Send to both ADMIN_EMAIL (if set) and EMAIL_USER so no alert is missed
+  const configuredAdmin = process.env.ADMIN_EMAIL?.trim();
+  const adminRecipients = Array.from(
+    new Set([configuredAdmin, emailUser, "suncuredsavories@gmail.com"].filter(Boolean))
+  ).join(", ");
 
   const itemsSubtotal = items.reduce((sum, item) => sum + item.quantity * item.price, 0);
   const shippingCharge = typeof passedShippingCharge === "number"
@@ -55,7 +64,7 @@ export const sendOrderEmails = async (
   // 1. Send Email to Admin
   const adminMailOptions = {
     from: `"Sun-Cured Orders" <${emailUser}>`,
-    to: adminEmail,
+    to: adminRecipients,
     replyTo: customerData.email,
     subject: `🚨 NEW ORDER RECEIVED #${orderId} - ₹${totalAmount}`,
     html: `
@@ -235,21 +244,19 @@ export const sendOrderEmails = async (
     `,
   };
 
-  // Send admin email
-  try {
-    const adminRes = await transporter.sendMail(adminMailOptions);
-    console.log(`Admin email sent successfully to ${adminEmail} for Order #${orderId}, messageId: ${adminRes.messageId}`);
-  } catch (adminError) {
-    console.error(`Failed to send Admin email to ${adminEmail} for Order #${orderId}:`, adminError);
-  }
-
-  // Send customer email
-  try {
-    const customerRes = await transporter.sendMail(customerMailOptions);
-    console.log(`Customer email sent successfully to ${customerData.email} for Order #${orderId}, messageId: ${customerRes.messageId}`);
-  } catch (customerError) {
-    console.error(`Failed to send Customer email to ${customerData.email} for Order #${orderId}:`, customerError);
-  }
+  // Send admin and customer emails concurrently for fast and resilient delivery
+  await Promise.allSettled([
+    transporter.sendMail(adminMailOptions).then((adminRes) => {
+      console.log(`Admin email sent successfully to ${adminRecipients} for Order #${orderId}, messageId: ${adminRes.messageId}`);
+    }).catch((adminError) => {
+      console.error(`Failed to send Admin email to ${adminRecipients} for Order #${orderId}:`, adminError);
+    }),
+    transporter.sendMail(customerMailOptions).then((customerRes) => {
+      console.log(`Customer email sent successfully to ${customerData.email} for Order #${orderId}, messageId: ${customerRes.messageId}`);
+    }).catch((customerError) => {
+      console.error(`Failed to send Customer email to ${customerData.email} for Order #${orderId}:`, customerError);
+    }),
+  ]);
 };
 
 export const sendStatusUpdateEmail = async (
