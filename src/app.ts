@@ -28,13 +28,19 @@ const allowedOrigins = [
   "https://www.suncuredsavories.com",
   "https://suncuredsavories.com",
   "https://sun-cured-frontend.vercel.app",
+  "https://sun-cured-savories-admin.vercel.app",
+  "https://sun-cured-admin.vercel.app",
 ];
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (mobile apps, curl, Postman)
-      if (!origin || allowedOrigins.includes(origin)) {
+      if (
+        !origin ||
+        allowedOrigins.includes(origin) ||
+        origin.endsWith(".vercel.app")
+      ) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked: ${origin}`));
